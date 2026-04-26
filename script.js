@@ -30,27 +30,41 @@ function loadImages(paths) {
   }));
 }
 
-function drawImageCover(img, alpha = 1) {
+// ✨ NEU: intelligente Skalierung
+function drawImageSmart(img, alpha = 1) {
   const cw = canvas.width;
   const ch = canvas.height;
   const iw = img.width;
   const ih = img.height;
 
-  const scale = Math.max(cw / iw, ch / ih);
-  const w = iw * scale;
-  const h = ih * scale;
-  const x = (cw - w) / 2;
-  const y = (ch - h) / 2;
+  let w, h, x, y;
+
+  const isPortrait = ih > iw;
+
+  if (isPortrait) {
+    // Hochformat → volle Höhe
+    h = ch;
+    w = (iw / ih) * h;
+  } else {
+    // Querformat → cover
+    const scale = Math.max(cw / iw, ch / ih);
+    w = iw * scale;
+    h = ih * scale;
+  }
+
+  x = (cw - w) / 2;
+  y = (ch - h) / 2;
 
   ctx.globalAlpha = alpha;
   ctx.drawImage(img, x, y, w, h);
   ctx.globalAlpha = 1;
 }
 
+// Dissolve-Effekt
 function drawDissolve() {
   ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-  drawImageCover(images[current], 1);
+  drawImageSmart(images[current], 1);
 
   const blockSize = 12;
   const cols = Math.ceil(canvas.width / blockSize);
@@ -74,10 +88,11 @@ function drawDissolve() {
   }
 
   ctx.clip();
-  drawImageCover(images[next], 1);
+  drawImageSmart(images[next], 1);
   ctx.restore();
 }
 
+// Animation
 function animateTransition() {
   transitioning = true;
   progress = 0;
@@ -93,16 +108,17 @@ function animateTransition() {
       current = next;
       next = (current + 1) % images.length;
       transitioning = false;
-      drawImageCover(images[current], 1);
+      drawImageSmart(images[current], 1);
     }
   }
 
   step();
 }
 
+// Start
 loadImages(imagePaths).then(loaded => {
   images = loaded;
-  drawImageCover(images[current], 1);
+  drawImageSmart(images[current], 1);
 
   setInterval(() => {
     if (!transitioning) animateTransition();
