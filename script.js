@@ -1,8 +1,7 @@
 const imagePaths = [
-  "images/04.jpg",
+  "images/01.jpg",
   "images/02.jpg",
-  "images/03.jpg",
-  "images/01.jpg"
+  "images/03.jpg"
 ];
 
 const canvas = document.getElementById("slider");
@@ -65,6 +64,7 @@ function drawImageSmart(img, alpha = 1) {
   ctx.globalAlpha = 1;
 }
 
+// Bilder auf Canvas vorbereiten
 function prepareImage(img) {
   const off = document.createElement("canvas");
   off.width = canvas.width;
@@ -91,11 +91,16 @@ window.addEventListener("resize", () => {
   }
 });
 
+// ✨ weichere Noise-Funktion
 function noise(x, y) {
-  const value = Math.sin(x * 12.9898 + y * 78.233) * 43758.5453;
-  return value - Math.floor(value);
+  return (
+    Math.sin(x * 0.021 + y * 0.017) +
+    Math.sin(x * 0.013 - y * 0.019) +
+    Math.sin(x * 0.008 + y * 0.011)
+  ) * 0.5 + 0.5;
 }
 
+// ✨ organischer tonaler Dissolve
 function drawTonalDissolve() {
   ctx.fillStyle = "black";
   ctx.fillRect(0, 0, canvas.width, canvas.height);
@@ -104,7 +109,6 @@ function drawTonalDissolve() {
 
   const currentData = ctx.getImageData(0, 0, canvas.width, canvas.height);
   const nextCanvas = preparedImages[next];
-
   const nextCtx = nextCanvas.getContext("2d");
   const nextData = nextCtx.getImageData(0, 0, canvas.width, canvas.height);
 
@@ -114,22 +118,25 @@ function drawTonalDissolve() {
   const width = canvas.width;
   const height = canvas.height;
 
-  const softness = 0.18;
+  const softness = 0.32;
 
-  for (let y = 0; y < height; y += 2) {
-    for (let x = 0; x < width; x += 2) {
+  for (let y = 0; y < height; y++) {
+    for (let x = 0; x < width; x++) {
       const i = (y * width + x) * 4;
 
       const r = pixels[i];
       const g = pixels[i + 1];
       const b = pixels[i + 2];
 
+      // Luminanz (Tonwert)
       const luminance = (0.299 * r + 0.587 * g + 0.114 * b) / 255;
 
-      // Highlights zuerst, Shadows zuletzt
+      // Reihenfolge: hell → mittel → dunkel
       const tonalOrder = 1 - luminance;
 
-      const grain = noise(x, y) * 0.22;
+      // ✨ großflächige, organische Struktur
+      const grain = noise(x * 0.15, y * 0.15) * 0.18;
+
       const threshold = tonalOrder + grain;
 
       if (progress > threshold - softness) {
@@ -138,16 +145,10 @@ function drawTonalDissolve() {
           Math.max(0, (progress - threshold + softness) / softness)
         );
 
-        for (let yy = 0; yy < 2; yy++) {
-          for (let xx = 0; xx < 2; xx++) {
-            const pi = ((y + yy) * width + (x + xx)) * 4;
-
-            pixels[pi] = pixels[pi] * (1 - fade) + nextPixels[pi] * fade;
-            pixels[pi + 1] = pixels[pi + 1] * (1 - fade) + nextPixels[pi + 1] * fade;
-            pixels[pi + 2] = pixels[pi + 2] * (1 - fade) + nextPixels[pi + 2] * fade;
-            pixels[pi + 3] = 255;
-          }
-        }
+        pixels[i] = pixels[i] * (1 - fade) + nextPixels[i] * fade;
+        pixels[i + 1] = pixels[i + 1] * (1 - fade) + nextPixels[i + 1] * fade;
+        pixels[i + 2] = pixels[i + 2] * (1 - fade) + nextPixels[i + 2] * fade;
+        pixels[i + 3] = 255;
       }
     }
   }
@@ -155,16 +156,17 @@ function drawTonalDissolve() {
   ctx.putImageData(currentData, 0, 0);
 }
 
+// Animation
 function animateTransition() {
   transitioning = true;
   progress = 0;
 
   function step() {
-    progress += 0.012;
+    progress += 0.008;
 
     drawTonalDissolve();
 
-    if (progress < 1.35) {
+    if (progress < 1.4) {
       requestAnimationFrame(step);
     } else {
       current = next;
@@ -177,6 +179,7 @@ function animateTransition() {
   step();
 }
 
+// Start
 loadImages(imagePaths).then(loaded => {
   images = loaded;
   prepareAllImages();
@@ -185,5 +188,5 @@ loadImages(imagePaths).then(loaded => {
 
   setInterval(() => {
     if (!transitioning) animateTransition();
-  }, 4500);
+  }, 5000);
 });
