@@ -1,8 +1,8 @@
 const imagePaths = [
-  "images/01.jpg",
+  "images/04.jpg",
   "images/02.jpg",
   "images/03.jpg"
-  "images/04.jpg",
+  "images/01.jpg",
 ];
 
 const canvas = document.getElementById("slider");
