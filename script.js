@@ -1,5 +1,5 @@
 const imagePaths = [
-  "images/01.jpg",
+  "images/04.jpg",
   "images/02.jpg",
   "images/03.jpg"
 ];
@@ -64,7 +64,6 @@ function drawImageSmart(img, alpha = 1) {
   ctx.globalAlpha = 1;
 }
 
-// Bilder auf Canvas vorbereiten
 function prepareImage(img) {
   const off = document.createElement("canvas");
   off.width = canvas.width;
@@ -91,7 +90,7 @@ window.addEventListener("resize", () => {
   }
 });
 
-// ✨ weichere Noise-Funktion
+// weich-organisches Noise
 function noise(x, y) {
   return (
     Math.sin(x * 0.021 + y * 0.017) +
@@ -100,7 +99,6 @@ function noise(x, y) {
   ) * 0.5 + 0.5;
 }
 
-// ✨ organischer tonaler Dissolve
 function drawTonalDissolve() {
   ctx.fillStyle = "black";
   ctx.fillRect(0, 0, canvas.width, canvas.height);
@@ -118,7 +116,7 @@ function drawTonalDissolve() {
   const width = canvas.width;
   const height = canvas.height;
 
-  const softness = 0.32;
+  const softness = 0.30;
 
   for (let y = 0; y < height; y++) {
     for (let x = 0; x < width; x++) {
@@ -128,15 +126,10 @@ function drawTonalDissolve() {
       const g = pixels[i + 1];
       const b = pixels[i + 2];
 
-      // Luminanz (Tonwert)
       const luminance = (0.299 * r + 0.587 * g + 0.114 * b) / 255;
-
-      // Reihenfolge: hell → mittel → dunkel
       const tonalOrder = 1 - luminance;
 
-      // ✨ großflächige, organische Struktur
       const grain = noise(x * 0.15, y * 0.15) * 0.18;
-
       const threshold = tonalOrder + grain;
 
       if (progress > threshold - softness) {
@@ -156,17 +149,16 @@ function drawTonalDissolve() {
   ctx.putImageData(currentData, 0, 0);
 }
 
-// Animation
 function animateTransition() {
   transitioning = true;
   progress = 0;
 
   function step() {
-    progress += 0.008;
+    progress += 0.015; // 🔥 schneller
 
     drawTonalDissolve();
 
-    if (progress < 1.4) {
+    if (progress < 1.1) { // 🔥 kürzere Strecke
       requestAnimationFrame(step);
     } else {
       current = next;
@@ -179,7 +171,6 @@ function animateTransition() {
   step();
 }
 
-// Start
 loadImages(imagePaths).then(loaded => {
   images = loaded;
   prepareAllImages();
@@ -188,5 +179,5 @@ loadImages(imagePaths).then(loaded => {
 
   setInterval(() => {
     if (!transitioning) animateTransition();
-  }, 5000);
+  }, 4000); // etwas schnellerer Wechsel
 });
