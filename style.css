@@ -1,37 +1,31 @@
-* {
-  box-sizing: border-box;
-}
-
 html,
 body {
-  margin: 0;
-  padding: 0;
+  margin: 0 !important;
+  padding: 0 !important;
+
   width: 100%;
   height: 100%;
+
   overflow: hidden;
+
   background: black;
 }
 
 body {
   position: fixed;
   inset: 0;
-}
-
-.slideshow {
-  position: fixed;
-  inset: 0;
-  width: 100%;
-  height: 100%;
-  overflow: hidden;
-  background: black;
 }
 
 canvas {
   position: fixed;
+
   top: 0;
   left: 0;
+
+  width: 100vw;
+  height: 100vh;
+
   display: block;
-  width: 100%;
-  height: 100%;
+
   background: black;
 }
