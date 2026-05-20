@@ -1,9 +1,8 @@
 const mediaPaths = [
   "images/01.jpg",
   "images/02.jpg",
-  "videos/01.mp4",
-  "images/03.jpg",
-  "videos/02.mp4"
+  "videos/typopassage.mp4",
+  "images/02.jpg"
 ];
 
 const IMAGE_HOLD_TIME = 2000; // Bilder stehen ca. 2 Sekunden
