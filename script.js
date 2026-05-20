@@ -1,42 +1,92 @@
-const imagePaths = [
+const mediaPaths = [
   "images/01.jpg",
   "images/02.jpg",
   "videos/typopassage.mp4",
   "images/03.jpg"
 ];
 
+const IMAGE_HOLD_TIME = 2000; // Bilder stehen ca. 2 Sekunden
+const TRANSITION_DURATION = 900; // Übergang maximal ca. 1 Sekunde
+
 const canvas = document.getElementById("slider");
 const ctx = canvas.getContext("2d");
 
-let images = [];
-let preparedImages = [];
+let media = [];
+let preparedMedia = [];
 let current = 0;
 let next = 1;
-let progress = 0;
 let transitioning = false;
+let progress = 0;
 
 function resize() {
   canvas.width = window.innerWidth;
   canvas.height = window.innerHeight;
+
+  if (media.length) {
+    prepareAllMedia();
+    drawCurrentMedia();
+  }
 }
+
 window.addEventListener("resize", resize);
 resize();
 
-function loadImages(paths) {
-  return Promise.all(paths.map(src => {
+function isVideo(path) {
+  return path.toLowerCase().endsWith(".mp4");
+}
+
+function loadMedia(paths) {
+  return Promise.all(paths.map(path => {
     return new Promise(resolve => {
-      const img = new Image();
-      img.onload = () => resolve(img);
-      img.src = src;
+      if (isVideo(path)) {
+        const video = document.createElement("video");
+        video.src = path;
+        video.muted = true;
+        video.playsInline = true;
+        video.preload = "auto";
+        video.loop = false;
+
+        video.addEventListener("loadeddata", () => {
+          resolve({
+            type: "video",
+            element: video
+          });
+        });
+      } else {
+        const img = new Image();
+        img.onload = () => {
+          resolve({
+            type: "image",
+            element: img
+          });
+        };
+        img.src = path;
+      }
     });
   }));
 }
 
-function getImagePlacement(img) {
+function getMediaSize(item) {
+  if (item.type === "video") {
+    return {
+      width: item.element.videoWidth,
+      height: item.element.videoHeight
+    };
+  }
+
+  return {
+    width: item.element.width,
+    height: item.element.height
+  };
+}
+
+function getPlacement(item) {
   const cw = canvas.width;
   const ch = canvas.height;
-  const iw = img.width;
-  const ih = img.height;
+
+  const size = getMediaSize(item);
+  const iw = size.width;
+  const ih = size.height;
 
   let w, h;
 
@@ -57,38 +107,39 @@ function getImagePlacement(img) {
   };
 }
 
-function drawImageSmart(img, alpha = 1) {
-  const p = getImagePlacement(img);
-  ctx.globalAlpha = alpha;
-  ctx.drawImage(img, p.x, p.y, p.w, p.h);
-  ctx.globalAlpha = 1;
+function drawMedia(item, targetCtx = ctx) {
+  const p = getPlacement(item);
+
+  targetCtx.fillStyle = "black";
+  targetCtx.fillRect(0, 0, canvas.width, canvas.height);
+
+  targetCtx.drawImage(
+    item.element,
+    p.x,
+    p.y,
+    p.w,
+    p.h
+  );
 }
 
-function prepareImage(img) {
+function prepareMediaFrame(item) {
   const off = document.createElement("canvas");
   off.width = canvas.width;
   off.height = canvas.height;
 
   const offCtx = off.getContext("2d");
-  offCtx.fillStyle = "black";
-  offCtx.fillRect(0, 0, off.width, off.height);
-
-  const p = getImagePlacement(img);
-  offCtx.drawImage(img, p.x, p.y, p.w, p.h);
+  drawMedia(item, offCtx);
 
   return off;
 }
 
-function prepareAllImages() {
-  preparedImages = images.map(img => prepareImage(img));
+function prepareAllMedia() {
+  preparedMedia = media.map(item => prepareMediaFrame(item));
 }
 
-window.addEventListener("resize", () => {
-  if (images.length) {
-    prepareAllImages();
-    drawImageSmart(images[current], 1);
-  }
-});
+function drawCurrentMedia() {
+  drawMedia(media[current]);
+}
 
 function noise(x, y) {
   return (
@@ -99,14 +150,13 @@ function noise(x, y) {
 }
 
 function drawTonalDissolve() {
-  ctx.fillStyle = "black";
-  ctx.fillRect(0, 0, canvas.width, canvas.height);
+  const currentFrame = prepareMediaFrame(media[current]);
+  const nextFrame = prepareMediaFrame(media[next]);
 
-  ctx.drawImage(preparedImages[current], 0, 0);
+  ctx.drawImage(currentFrame, 0, 0);
 
   const currentData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-  const nextCanvas = preparedImages[next];
-  const nextCtx = nextCanvas.getContext("2d");
+  const nextCtx = nextFrame.getContext("2d");
   const nextData = nextCtx.getImageData(0, 0, canvas.width, canvas.height);
 
   const pixels = currentData.data;
@@ -148,35 +198,69 @@ function drawTonalDissolve() {
   ctx.putImageData(currentData, 0, 0);
 }
 
-function animateTransition() {
+function animateTransition(callback) {
   transitioning = true;
   progress = 0;
 
-  function step() {
-    progress += 0.028; // schneller Übergang, ca. unter 1 Sekunde
+  const startTime = performance.now();
+
+  function step(now) {
+    const elapsed = now - startTime;
+    progress = elapsed / TRANSITION_DURATION * 1.05;
 
     drawTonalDissolve();
 
-    if (progress < 1.05) {
+    if (elapsed < TRANSITION_DURATION) {
       requestAnimationFrame(step);
     } else {
       current = next;
-      next = (current + 1) % images.length;
+      next = (current + 1) % media.length;
       transitioning = false;
-      drawImageSmart(images[current], 1);
+      drawCurrentMedia();
+
+      if (callback) callback();
     }
   }
 
-  step();
+  requestAnimationFrame(step);
 }
 
-loadImages(imagePaths).then(loaded => {
-  images = loaded;
-  prepareAllImages();
+function playCurrent() {
+  const item = media[current];
 
-  drawImageSmart(images[current], 1);
+  if (item.type === "video") {
+    const video = item.element;
 
-  setInterval(() => {
-    if (!transitioning) animateTransition();
-  }, 3000); // ca. 2 Sekunden Standzeit + 1 Sekunde Übergang
+    video.currentTime = 0;
+    video.play();
+
+    function drawVideoFrame() {
+      if (!transitioning && current < media.length && media[current] === item) {
+        drawCurrentMedia();
+        requestAnimationFrame(drawVideoFrame);
+      }
+    }
+
+    drawVideoFrame();
+
+    video.onended = () => {
+      animateTransition(playCurrent);
+    };
+  } else {
+    drawCurrentMedia();
+
+    setTimeout(() => {
+      if (!transitioning) {
+        animateTransition(playCurrent);
+      }
+    }, IMAGE_HOLD_TIME);
+  }
+}
+
+loadMedia(mediaPaths).then(loaded => {
+  media = loaded;
+  prepareAllMedia();
+
+  drawCurrentMedia();
+  playCurrent();
 });
