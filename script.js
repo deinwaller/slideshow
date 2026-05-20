@@ -154,7 +154,7 @@ function animateTransition() {
   progress = 0;
 
   function step() {
-    progress += 0.015; // 🔥 schneller
+    progress += 0.03; // 🔥 schneller
 
     drawTonalDissolve();
 
