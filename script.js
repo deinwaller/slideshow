@@ -1,5 +1,5 @@
 const imagePaths = [
-  "images/04.jpg",
+  "images/01.jpg",
   "images/02.jpg",
   "images/03.jpg"
 ];
@@ -58,7 +58,6 @@ function getImagePlacement(img) {
 
 function drawImageSmart(img, alpha = 1) {
   const p = getImagePlacement(img);
-
   ctx.globalAlpha = alpha;
   ctx.drawImage(img, p.x, p.y, p.w, p.h);
   ctx.globalAlpha = 1;
@@ -90,7 +89,6 @@ window.addEventListener("resize", () => {
   }
 });
 
-// weich-organisches Noise
 function noise(x, y) {
   return (
     Math.sin(x * 0.021 + y * 0.017) +
@@ -116,7 +114,7 @@ function drawTonalDissolve() {
   const width = canvas.width;
   const height = canvas.height;
 
-  const softness = 0.30;
+  const softness = 0.26;
 
   for (let y = 0; y < height; y++) {
     for (let x = 0; x < width; x++) {
@@ -154,11 +152,11 @@ function animateTransition() {
   progress = 0;
 
   function step() {
-    progress += 0.03; // 🔥 schneller
+    progress += 0.028; // schneller Übergang, ca. unter 1 Sekunde
 
     drawTonalDissolve();
 
-    if (progress < 1.1) { // 🔥 kürzere Strecke
+    if (progress < 1.05) {
       requestAnimationFrame(step);
     } else {
       current = next;
@@ -179,5 +177,5 @@ loadImages(imagePaths).then(loaded => {
 
   setInterval(() => {
     if (!transitioning) animateTransition();
-  }, 2000); // etwas schnellerer Wechsel
+  }, 3000); // ca. 2 Sekunden Standzeit + 1 Sekunde Übergang
 });
