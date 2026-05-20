@@ -179,5 +179,5 @@ loadImages(imagePaths).then(loaded => {
 
   setInterval(() => {
     if (!transitioning) animateTransition();
-  }, 4000); // etwas schnellerer Wechsel
+  }, 2000); // etwas schnellerer Wechsel
 });
