@@ -13,18 +13,19 @@ const canvas = document.getElementById("slider");
 const ctx = canvas.getContext("2d");
 
 let media = [];
+
 let current = 0;
 let next = 1;
 
 let transitioning = false;
 let progress = 0;
 
-// merkt sich das aktuell sichtbare Gesamtbild
 let accumulatedCanvas = null;
 
 function resize() {
-  canvas.width = window.innerWidth;
-  canvas.height = window.innerHeight;
+
+  canvas.width = document.documentElement.clientWidth;
+  canvas.height = document.documentElement.clientHeight;
 
   if (media.length) {
     drawCurrentMedia();
@@ -32,6 +33,7 @@ function resize() {
 }
 
 window.addEventListener("resize", resize);
+
 resize();
 
 function isVideo(path) {
@@ -39,44 +41,58 @@ function isVideo(path) {
 }
 
 function loadMedia(paths) {
-  return Promise.all(paths.map(path => {
-    return new Promise(resolve => {
 
-      if (isVideo(path)) {
-        const video = document.createElement("video");
+  return Promise.all(
 
-        video.src = path;
-        video.muted = true;
-        video.playsInline = true;
-        video.preload = "auto";
-        video.loop = false;
+    paths.map(path => {
 
-        video.addEventListener("loadeddata", () => {
-          resolve({
-            type: "video",
-            element: video
+      return new Promise(resolve => {
+
+        // VIDEO
+        if (isVideo(path)) {
+
+          const video = document.createElement("video");
+
+          video.src = path;
+          video.muted = true;
+          video.playsInline = true;
+          video.preload = "auto";
+          video.loop = false;
+
+          video.addEventListener("loadeddata", () => {
+
+            resolve({
+              type: "video",
+              element: video
+            });
+
           });
-        });
 
-      } else {
+        // IMAGE
+        } else {
 
-        const img = new Image();
+          const img = new Image();
 
-        img.onload = () => {
-          resolve({
-            type: "image",
-            element: img
-          });
-        };
+          img.onload = () => {
 
-        img.src = path;
-      }
-    });
-  }));
+            resolve({
+              type: "image",
+              element: img
+            });
+
+          };
+
+          img.src = path;
+        }
+      });
+    })
+  );
 }
 
 function getMediaSize(item) {
+
   if (item.type === "video") {
+
     return {
       width: item.element.videoWidth,
       height: item.element.videoHeight
@@ -90,6 +106,7 @@ function getMediaSize(item) {
 }
 
 function getPlacement(item) {
+
   const cw = canvas.width;
   const ch = canvas.height;
 
@@ -98,17 +115,18 @@ function getPlacement(item) {
   const iw = size.width;
   const ih = size.height;
 
-  let w, h;
+  let w;
+  let h;
 
+  // Hochformat
   if (ih > iw) {
 
-    // Hochformat → volle Höhe
     h = ch;
     w = (iw / ih) * h;
 
+  // Querformat
   } else {
 
-    // Querformat → cover
     const scale = Math.max(cw / iw, ch / ih);
 
     w = iw * scale;
@@ -123,12 +141,24 @@ function getPlacement(item) {
   };
 }
 
-function drawMedia(item, targetCtx = ctx, clearBackground = false) {
+function drawMedia(
+  item,
+  targetCtx = ctx,
+  clearBackground = false
+) {
+
   const p = getPlacement(item);
 
   if (clearBackground) {
+
     targetCtx.fillStyle = "black";
-    targetCtx.fillRect(0, 0, canvas.width, canvas.height);
+
+    targetCtx.fillRect(
+      0,
+      0,
+      canvas.width,
+      canvas.height
+    );
   }
 
   targetCtx.drawImage(
@@ -141,6 +171,7 @@ function drawMedia(item, targetCtx = ctx, clearBackground = false) {
 }
 
 function cloneCanvas(source) {
+
   const c = document.createElement("canvas");
 
   c.width = canvas.width;
@@ -153,7 +184,11 @@ function cloneCanvas(source) {
   return c;
 }
 
-function prepareMediaFrame(item, baseCanvas = null) {
+function prepareMediaFrame(
+  item,
+  baseCanvas = null
+) {
+
   const off = document.createElement("canvas");
 
   off.width = canvas.width;
@@ -161,39 +196,55 @@ function prepareMediaFrame(item, baseCanvas = null) {
 
   const offCtx = off.getContext("2d");
 
-  // schwarzer Hintergrund nur ganz am Anfang
+  // nur ganz am Anfang schwarz
   if (!baseCanvas) {
+
     offCtx.fillStyle = "black";
-    offCtx.fillRect(0, 0, off.width, off.height);
+
+    offCtx.fillRect(
+      0,
+      0,
+      off.width,
+      off.height
+    );
   }
 
-  // vorheriges Gesamtbild behalten
+  // altes Bild behalten
   if (baseCanvas) {
     offCtx.drawImage(baseCanvas, 0, 0);
   }
 
-  // neues Medium darüberzeichnen
+  // neues Medium darüber
   drawMedia(item, offCtx, false);
 
   return off;
 }
 
 function drawCurrentMedia() {
+
   if (!accumulatedCanvas) {
-    accumulatedCanvas = prepareMediaFrame(media[current]);
+
+    accumulatedCanvas = prepareMediaFrame(
+      media[current]
+    );
   }
 
   ctx.drawImage(accumulatedCanvas, 0, 0);
 }
 
+// organisches Noise
 function noise(x, y) {
+
   return (
+
     Math.sin(x * 0.021 + y * 0.017) +
     Math.sin(x * 0.013 - y * 0.019) +
     Math.sin(x * 0.008 + y * 0.011)
+
   ) * 0.5 + 0.5;
 }
 
+// tonaler Dissolve
 function drawTonalDissolve(nextCanvas) {
 
   ctx.drawImage(accumulatedCanvas, 0, 0);
@@ -239,9 +290,13 @@ function drawTonalDissolve(nextCanvas) {
       const tonalOrder = 1 - luminance;
 
       const grain =
-        noise(x * 0.15, y * 0.15) * 0.18;
+        noise(
+          x * 0.15,
+          y * 0.15
+        ) * 0.18;
 
-      const threshold = tonalOrder + grain;
+      const threshold =
+        tonalOrder + grain;
 
       if (progress > threshold - softness) {
 
@@ -249,7 +304,11 @@ function drawTonalDissolve(nextCanvas) {
           1,
           Math.max(
             0,
-            (progress - threshold + softness) / softness
+            (
+              progress -
+              threshold +
+              softness
+            ) / softness
           )
         );
 
@@ -270,12 +329,17 @@ function drawTonalDissolve(nextCanvas) {
     }
   }
 
-  ctx.putImageData(currentData, 0, 0);
+  ctx.putImageData(
+    currentData,
+    0,
+    0
+  );
 }
 
 function animateTransition(callback) {
 
   transitioning = true;
+
   progress = 0;
 
   const nextFrame = prepareMediaFrame(
@@ -287,29 +351,47 @@ function animateTransition(callback) {
 
   function step(now) {
 
-    const elapsed = now - startTime;
+    const elapsed =
+      now - startTime;
 
     progress =
-      (elapsed / TRANSITION_DURATION) * 1.05;
+      (
+        elapsed /
+        TRANSITION_DURATION
+      ) * 1.05;
 
     drawTonalDissolve(nextFrame);
 
-    if (elapsed < TRANSITION_DURATION) {
+    if (
+      elapsed <
+      TRANSITION_DURATION
+    ) {
 
       requestAnimationFrame(step);
 
     } else {
 
-      accumulatedCanvas = cloneCanvas(nextFrame);
+      accumulatedCanvas =
+        cloneCanvas(nextFrame);
 
       current = next;
-      next = (current + 1) % media.length;
+
+      next =
+        (
+          current + 1
+        ) % media.length;
 
       transitioning = false;
 
-      ctx.drawImage(accumulatedCanvas, 0, 0);
+      ctx.drawImage(
+        accumulatedCanvas,
+        0,
+        0
+      );
 
-      if (callback) callback();
+      if (callback) {
+        callback();
+      }
     }
   }
 
@@ -320,6 +402,7 @@ function playCurrent() {
 
   const item = media[current];
 
+  // VIDEO
   if (item.type === "video") {
 
     const video = item.element;
@@ -335,36 +418,55 @@ function playCurrent() {
         media[current] === item
       ) {
 
-        accumulatedCanvas = prepareMediaFrame(
-          item,
-          accumulatedCanvas
+        accumulatedCanvas =
+          prepareMediaFrame(
+            item,
+            accumulatedCanvas
+          );
+
+        ctx.drawImage(
+          accumulatedCanvas,
+          0,
+          0
         );
 
-        ctx.drawImage(accumulatedCanvas, 0, 0);
-
-        requestAnimationFrame(drawVideoFrame);
+        requestAnimationFrame(
+          drawVideoFrame
+        );
       }
     }
 
     drawVideoFrame();
 
     video.onended = () => {
-      animateTransition(playCurrent);
+
+      animateTransition(
+        playCurrent
+      );
     };
 
+  // IMAGE
   } else {
 
-    accumulatedCanvas = prepareMediaFrame(
-      item,
-      accumulatedCanvas
-    );
+    accumulatedCanvas =
+      prepareMediaFrame(
+        item,
+        accumulatedCanvas
+      );
 
-    ctx.drawImage(accumulatedCanvas, 0, 0);
+    ctx.drawImage(
+      accumulatedCanvas,
+      0,
+      0
+    );
 
     setTimeout(() => {
 
       if (!transitioning) {
-        animateTransition(playCurrent);
+
+        animateTransition(
+          playCurrent
+        );
       }
 
     }, IMAGE_HOLD_TIME);
@@ -375,11 +477,16 @@ loadMedia(mediaPaths).then(loaded => {
 
   media = loaded;
 
-  accumulatedCanvas = prepareMediaFrame(
-    media[current]
-  );
+  accumulatedCanvas =
+    prepareMediaFrame(
+      media[current]
+    );
 
-  ctx.drawImage(accumulatedCanvas, 0, 0);
+  ctx.drawImage(
+    accumulatedCanvas,
+    0,
+    0
+  );
 
   playCurrent();
 });
