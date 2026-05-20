@@ -1,6 +1,7 @@
 const imagePaths = [
   "images/01.jpg",
   "images/02.jpg",
+  "videos/typopassage.mp4",
   "images/03.jpg"
 ];
 
