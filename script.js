@@ -15,8 +15,8 @@ const mediaPaths = [
 const IMAGE_HOLD_TIME = 2000;
 const TRANSITION_DURATION = 1000;
 
-// kleiner = smoother, größer = schärfer
-const TRANSITION_SCALE = 0.25;
+// kleiner = flüssiger, größer = schärfer
+const TRANSITION_SCALE = 0.35;
 
 const canvas = document.getElementById("slider");
 const ctx = canvas.getContext("2d");
@@ -29,7 +29,6 @@ let next = 1;
 
 let transitioning = false;
 let progress = 0;
-
 let accumulatedCanvas = null;
 
 const workCanvas = document.createElement("canvas");
@@ -150,18 +149,6 @@ function drawMedia(item, targetCtx = ctx, targetWidth = canvas.width, targetHeig
   );
 }
 
-function cloneCanvas(source) {
-  const c = document.createElement("canvas");
-
-  c.width = canvas.width;
-  c.height = canvas.height;
-
-  const cctx = c.getContext("2d");
-  cctx.drawImage(source, 0, 0);
-
-  return c;
-}
-
 function prepareMediaFrame(item, baseCanvas = null) {
   const off = document.createElement("canvas");
 
@@ -220,20 +207,15 @@ function drawCurrentMedia() {
 
 function noise(x, y) {
   return (
-    Math.sin(x * 0.031 + y * 0.021) +
-    Math.sin(x * 0.017 - y * 0.029) +
-    Math.sin(x * 0.009 + y * 0.013) +
-    Math.sin(x * 0.047 - y * 0.041)
-  ) * 0.35 + 0.5;
+    Math.sin(x * 0.07 + y * 0.031) +
+    Math.sin(x * 0.019 - y * 0.083) +
+    Math.sin(x * 0.113 + y * 0.041) +
+    Math.sin(x * 0.151 - y * 0.097)
+  ) * 0.32 + 0.5;
 }
 
-function smoothstep(edge0, edge1, x) {
-  const t = Math.min(
-    1,
-    Math.max(0, (x - edge0) / (edge1 - edge0))
-  );
-
-  return t * t * (3 - 2 * t);
+function hardStep(edge, x) {
+  return x >= edge ? 1 : 0;
 }
 
 function drawTonalDissolveSmall(nextItem) {
@@ -271,11 +253,14 @@ function drawTonalDissolveSmall(nextItem) {
   const width = workCanvas.width;
   const height = workCanvas.height;
 
-  const softness = 0.18;
-  const grainStrength = 0.30;
-  const edgeContrast = 0.06;
+  const grainStrength = 0.42;
+  const tearStrength = 0.16;
+  const edgeFlash = 0.14;
 
   for (let y = 0; y < height; y++) {
+    const rowBreak =
+      Math.sin(y * 0.21 + progress * 18) * tearStrength;
+
     for (let x = 0; x < width; x++) {
       const i = (y * width + x) * 4;
 
@@ -286,41 +271,42 @@ function drawTonalDissolveSmall(nextItem) {
       const luminance =
         (0.299 * r + 0.587 * g + 0.114 * b) / 255;
 
+      // hell → dunkel
       const tonalOrder = 1 - luminance;
 
-      const organicNoise =
-        noise(x * 0.42, y * 0.42) * grainStrength;
+      const n =
+        noise(x, y) * grainStrength;
 
-      const verticalWave =
-        Math.sin((y / height) * Math.PI * 3 + progress * 8) * 0.06;
+      const diagonalTear =
+        Math.sin((x + y) * 0.08 + progress * 20) * 0.08;
 
       const threshold =
-        tonalOrder + organicNoise + verticalWave;
+        tonalOrder +
+        n +
+        rowBreak +
+        diagonalTear;
 
-      const fade = smoothstep(
-        threshold - softness,
-        threshold + softness,
+      // härter/zerstörter als smoothstep
+      const fade = hardStep(
+        threshold,
         progress
       );
 
-      const edge =
-        1 - Math.abs(fade - 0.5) * 2;
+      const nearEdge =
+        Math.abs(progress - threshold) < 0.06 ? 1 : 0;
 
       if (fade > 0) {
         pixels[i] =
-          pixels[i] * (1 - fade) +
-          nextPixels[i] * fade +
-          edge * edgeContrast * 255;
+          nextPixels[i] +
+          nearEdge * edgeFlash * 255;
 
         pixels[i + 1] =
-          pixels[i + 1] * (1 - fade) +
-          nextPixels[i + 1] * fade +
-          edge * edgeContrast * 180;
+          nextPixels[i + 1] +
+          nearEdge * edgeFlash * 160;
 
         pixels[i + 2] =
-          pixels[i + 2] * (1 - fade) +
-          nextPixels[i + 2] * fade +
-          edge * edgeContrast * 90;
+          nextPixels[i + 2] +
+          nearEdge * edgeFlash * 70;
 
         pixels[i + 3] = 255;
       }
@@ -330,7 +316,6 @@ function drawTonalDissolveSmall(nextItem) {
   workCtx.putImageData(currentData, 0, 0);
 
   ctx.clearRect(0, 0, canvas.width, canvas.height);
-
   ctx.imageSmoothingEnabled = true;
 
   ctx.drawImage(
@@ -364,7 +349,7 @@ function animateTransition(callback) {
   function step(now) {
     const elapsed = now - startTime;
 
-    progress = (elapsed / TRANSITION_DURATION) * 1.15;
+    progress = (elapsed / TRANSITION_DURATION) * 1.2;
 
     drawTonalDissolveSmall(nextItem);
 
@@ -398,10 +383,10 @@ function playCurrent() {
   if (item.type === "video") {
     const video = item.element;
 
-    if (video.paused) {
-      video.currentTime = 0;
-      video.play();
-    }
+    video.currentTime = 0;
+    video.play();
+
+    let transitionStarted = false;
 
     function drawVideoFrame() {
       if (
@@ -415,6 +400,19 @@ function playCurrent() {
 
         ctx.drawImage(accumulatedCanvas, 0, 0);
 
+        const timeLeft =
+          video.duration - video.currentTime;
+
+        if (
+          !transitionStarted &&
+          Number.isFinite(timeLeft) &&
+          timeLeft <= TRANSITION_DURATION / 1000
+        ) {
+          transitionStarted = true;
+          animateTransition(playCurrent);
+          return;
+        }
+
         requestAnimationFrame(drawVideoFrame);
       }
     }
@@ -422,7 +420,10 @@ function playCurrent() {
     drawVideoFrame();
 
     video.onended = () => {
-      animateTransition(playCurrent);
+      if (!transitionStarted && !transitioning) {
+        transitionStarted = true;
+        animateTransition(playCurrent);
+      }
     };
   } else {
     accumulatedCanvas = prepareMediaFrame(
