@@ -15,8 +15,13 @@ const mediaPaths = [
 const IMAGE_HOLD_TIME = 2000;
 const TRANSITION_DURATION = 1000;
 
+// kleiner = smoother, größer = schärfer
+const TRANSITION_SCALE = 0.35;
+
 const canvas = document.getElementById("slider");
 const ctx = canvas.getContext("2d");
+
+ctx.imageSmoothingEnabled = true;
 
 let media = [];
 let current = 0;
@@ -27,13 +32,21 @@ let progress = 0;
 
 let accumulatedCanvas = null;
 
+const workCanvas = document.createElement("canvas");
+const workCtx = workCanvas.getContext("2d");
+
+const nextWorkCanvas = document.createElement("canvas");
+const nextWorkCtx = nextWorkCanvas.getContext("2d");
+
 function resize() {
+  canvas.width = document.documentElement.clientWidth;
+  canvas.height = document.documentElement.clientHeight;
 
-  canvas.width =
-    document.documentElement.clientWidth;
+  workCanvas.width = Math.max(1, Math.round(canvas.width * TRANSITION_SCALE));
+  workCanvas.height = Math.max(1, Math.round(canvas.height * TRANSITION_SCALE));
 
-  canvas.height =
-    document.documentElement.clientHeight;
+  nextWorkCanvas.width = workCanvas.width;
+  nextWorkCanvas.height = workCanvas.height;
 
   if (media.length) {
     drawCurrentMedia();
@@ -41,53 +54,35 @@ function resize() {
 }
 
 window.addEventListener("resize", resize);
-
 resize();
 
 function isVideo(path) {
-
   return /\.(mp4|mov)$/i.test(path);
 }
 
 function loadMedia(paths) {
-
   return Promise.all(
-
     paths.map(path => {
-
       return new Promise(resolve => {
-
-        // VIDEO
         if (isVideo(path)) {
-
-          const video =
-            document.createElement("video");
+          const video = document.createElement("video");
 
           video.src = path;
-
           video.muted = true;
           video.playsInline = true;
           video.preload = "auto";
           video.loop = false;
 
-          video.addEventListener(
-            "loadeddata",
-            () => {
-
-              resolve({
-                type: "video",
-                element: video
-              });
-            }
-          );
-
-        // IMAGE
+          video.addEventListener("loadeddata", () => {
+            resolve({
+              type: "video",
+              element: video
+            });
+          });
         } else {
-
           const img = new Image();
 
           img.onload = () => {
-
             resolve({
               type: "image",
               element: img
@@ -102,9 +97,7 @@ function loadMedia(paths) {
 }
 
 function getMediaSize(item) {
-
   if (item.type === "video") {
-
     return {
       width: item.element.videoWidth,
       height: item.element.videoHeight
@@ -117,63 +110,36 @@ function getMediaSize(item) {
   };
 }
 
-// ✨ contain / maximale Breite oder Höhe
-function getPlacement(item) {
-
-  const cw = canvas.width;
-  const ch = canvas.height;
-
+function getPlacement(item, targetWidth = canvas.width, targetHeight = canvas.height) {
   const size = getMediaSize(item);
 
   const iw = size.width;
   const ih = size.height;
 
   const mediaRatio = iw / ih;
-  const canvasRatio = cw / ch;
+  const canvasRatio = targetWidth / targetHeight;
 
   let w;
   let h;
 
   if (mediaRatio > canvasRatio) {
-
-    // breiter → volle Breite
-    w = cw;
-    h = cw / mediaRatio;
-
+    w = targetWidth;
+    h = targetWidth / mediaRatio;
   } else {
-
-    // höher/schmaler → volle Höhe
-    h = ch;
-    w = ch * mediaRatio;
+    h = targetHeight;
+    w = targetHeight * mediaRatio;
   }
 
   return {
-    x: (cw - w) / 2,
-    y: (ch - h) / 2,
+    x: (targetWidth - w) / 2,
+    y: (targetHeight - h) / 2,
     w,
     h
   };
 }
 
-function drawMedia(
-  item,
-  targetCtx = ctx,
-  clearBackground = false
-) {
-
-  const p = getPlacement(item);
-
-  if (clearBackground) {
-
-    targetCtx.fillStyle = "black";
-
-    targetCtx.fillRect(
-      0,
-      0,
-      canvas.width,
-      canvas.height
-    );
-  }
+function drawMedia(item, targetCtx = ctx, targetWidth = canvas.width, targetHeight = canvas.height) {
+  const p = getPlacement(item, targetWidth, targetHeight);
 
   targetCtx.drawImage(
     item.element,
@@ -185,26 +151,19 @@ function drawMedia(
 }
 
 function cloneCanvas(source) {
-
   const c = document.createElement("canvas");
 
   c.width = canvas.width;
   c.height = canvas.height;
 
   const cctx = c.getContext("2d");
-
   cctx.drawImage(source, 0, 0);
 
   return c;
 }
 
-function prepareMediaFrame(
-  item,
-  baseCanvas = null
-) {
-
-  const off =
-    document.createElement("canvas");
+function prepareMediaFrame(item, baseCanvas = null) {
+  const off = document.createElement("canvas");
 
   off.width = canvas.width;
   off.height = canvas.height;
@@ -212,154 +171,131 @@ function prepareMediaFrame(
   const offCtx = off.getContext("2d");
 
   if (!baseCanvas) {
-
     offCtx.fillStyle = "black";
-
-    offCtx.fillRect(
-      0,
-      0,
-      off.width,
-      off.height
-    );
+    offCtx.fillRect(0, 0, off.width, off.height);
   }
 
-  // vorheriges Bild behalten
   if (baseCanvas) {
-
-    offCtx.drawImage(
-      baseCanvas,
-      0,
-      0
-    );
+    offCtx.drawImage(baseCanvas, 0, 0);
   }
 
-  // neues Medium darüber
-  drawMedia(item, offCtx, false);
+  drawMedia(item, offCtx, canvas.width, canvas.height);
 
   return off;
 }
 
-function drawCurrentMedia() {
+function prepareSmallFrame(item, baseCanvas = null, targetCtx) {
+  targetCtx.clearRect(0, 0, workCanvas.width, workCanvas.height);
 
-  if (!accumulatedCanvas) {
-
-    accumulatedCanvas =
-      prepareMediaFrame(
-        media[current]
-      );
+  if (!baseCanvas) {
+    targetCtx.fillStyle = "black";
+    targetCtx.fillRect(0, 0, workCanvas.width, workCanvas.height);
   }
 
-  ctx.drawImage(
-    accumulatedCanvas,
-    0,
-    0
+  if (baseCanvas) {
+    targetCtx.drawImage(
+      baseCanvas,
+      0,
+      0,
+      workCanvas.width,
+      workCanvas.height
+    );
+  }
+
+  drawMedia(
+    item,
+    targetCtx,
+    workCanvas.width,
+    workCanvas.height
   );
 }
 
-// organisches Noise
+function drawCurrentMedia() {
+  if (!accumulatedCanvas) {
+    accumulatedCanvas = prepareMediaFrame(media[current]);
+  }
+
+  ctx.drawImage(accumulatedCanvas, 0, 0);
+}
+
 function noise(x, y) {
-
   return (
-
     Math.sin(x * 0.031 + y * 0.021) +
     Math.sin(x * 0.017 - y * 0.029) +
     Math.sin(x * 0.009 + y * 0.013) +
     Math.sin(x * 0.047 - y * 0.041)
-
   ) * 0.35 + 0.5;
 }
 
 function smoothstep(edge0, edge1, x) {
-
   const t = Math.min(
     1,
-    Math.max(
-      0,
-      (x - edge0) /
-      (edge1 - edge0)
-    )
+    Math.max(0, (x - edge0) / (edge1 - edge0))
   );
 
   return t * t * (3 - 2 * t);
 }
 
-// ✨ extremer Dissolve
-function drawTonalDissolve(nextCanvas) {
-
-  ctx.drawImage(
+function drawTonalDissolveSmall(nextItem) {
+  workCtx.drawImage(
     accumulatedCanvas,
     0,
-    0
+    0,
+    workCanvas.width,
+    workCanvas.height
   );
 
-  const currentData =
-    ctx.getImageData(
-      0,
-      0,
-      canvas.width,
-      canvas.height
-    );
+  prepareSmallFrame(
+    nextItem,
+    accumulatedCanvas,
+    nextWorkCtx
+  );
 
-  const nextCtx =
-    nextCanvas.getContext("2d");
+  const currentData = workCtx.getImageData(
+    0,
+    0,
+    workCanvas.width,
+    workCanvas.height
+  );
 
-  const nextData =
-    nextCtx.getImageData(
-      0,
-      0,
-      canvas.width,
-      canvas.height
-    );
+  const nextData = nextWorkCtx.getImageData(
+    0,
+    0,
+    nextWorkCanvas.width,
+    nextWorkCanvas.height
+  );
 
   const pixels = currentData.data;
   const nextPixels = nextData.data;
 
-  const width = canvas.width;
-  const height = canvas.height;
+  const width = workCanvas.width;
+  const height = workCanvas.height;
 
-  const softness = 0.16;
-  const grainStrength = 0.34;
-  const edgeContrast = 0.08;
+  const softness = 0.18;
+  const grainStrength = 0.30;
+  const edgeContrast = 0.06;
 
   for (let y = 0; y < height; y++) {
-
     for (let x = 0; x < width; x++) {
-
-      const i =
-        (y * width + x) * 4;
+      const i = (y * width + x) * 4;
 
       const r = pixels[i];
       const g = pixels[i + 1];
       const b = pixels[i + 2];
 
       const luminance =
-        (
-          0.299 * r +
-          0.587 * g +
-          0.114 * b
-        ) / 255;
+        (0.299 * r + 0.587 * g + 0.114 * b) / 255;
 
-      const tonalOrder =
-        1 - luminance;
+      const tonalOrder = 1 - luminance;
 
       const organicNoise =
-        noise(
-          x * 0.18,
-          y * 0.18
-        ) * grainStrength;
+        noise(x * 0.42, y * 0.42) * grainStrength;
 
       const verticalWave =
-        Math.sin(
-          (y / height) *
-          Math.PI *
-          3 +
-          progress * 8
-        ) * 0.08;
+        Math.sin((y / height) * Math.PI * 3 + progress * 8) * 0.06;
 
       const threshold =
-        tonalOrder +
-        organicNoise +
-        verticalWave;
+        tonalOrder + organicNoise + verticalWave;
 
       const fade = smoothstep(
         threshold - softness,
@@ -368,123 +304,84 @@ function drawTonalDissolve(nextCanvas) {
       );
 
       const edge =
-        1 -
-        Math.abs(fade - 0.5) * 2;
+        1 - Math.abs(fade - 0.5) * 2;
 
       if (fade > 0) {
-
         pixels[i] =
-          pixels[i] *
-          (1 - fade) +
-          nextPixels[i] *
-          fade +
-          edge *
-          edgeContrast *
-          255;
+          pixels[i] * (1 - fade) +
+          nextPixels[i] * fade +
+          edge * edgeContrast * 255;
 
         pixels[i + 1] =
-          pixels[i + 1] *
-          (1 - fade) +
-          nextPixels[i + 1] *
-          fade +
-          edge *
-          edgeContrast *
-          180;
+          pixels[i + 1] * (1 - fade) +
+          nextPixels[i + 1] * fade +
+          edge * edgeContrast * 180;
 
         pixels[i + 2] =
-          pixels[i + 2] *
-          (1 - fade) +
-          nextPixels[i + 2] *
-          fade +
-          edge *
-          edgeContrast *
-          90;
+          pixels[i + 2] * (1 - fade) +
+          nextPixels[i + 2] * fade +
+          edge * edgeContrast * 90;
 
         pixels[i + 3] = 255;
       }
     }
   }
 
-  ctx.putImageData(
-    currentData,
+  workCtx.putImageData(currentData, 0, 0);
+
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+  ctx.imageSmoothingEnabled = true;
+
+  ctx.drawImage(
+    workCanvas,
     0,
-    0
+    0,
+    canvas.width,
+    canvas.height
   );
 }
 
 function startVideoIfNeeded(item) {
-
   if (item.type === "video") {
-
     const video = item.element;
 
     video.currentTime = 0;
-
     video.play();
   }
 }
 
 function animateTransition(callback) {
-
   transitioning = true;
-
   progress = 0;
 
   const nextItem = media[next];
 
-  // ✨ Video startet schon VOR dem Übergang
   startVideoIfNeeded(nextItem);
 
-  const startTime =
-    performance.now();
+  const startTime = performance.now();
 
   function step(now) {
+    const elapsed = now - startTime;
 
-    const elapsed =
-      now - startTime;
+    progress = (elapsed / TRANSITION_DURATION) * 1.15;
 
-    progress =
-      (
-        elapsed /
-        TRANSITION_DURATION
-      ) * 1.15;
+    drawTonalDissolveSmall(nextItem);
 
-    const nextFrame =
-      prepareMediaFrame(
+    if (elapsed < TRANSITION_DURATION) {
+      requestAnimationFrame(step);
+    } else {
+      accumulatedCanvas = prepareMediaFrame(
         nextItem,
         accumulatedCanvas
       );
 
-    drawTonalDissolve(
-      nextFrame
-    );
-
-    if (
-      elapsed <
-      TRANSITION_DURATION
-    ) {
-
-      requestAnimationFrame(step);
-
-    } else {
-
-      accumulatedCanvas =
-        cloneCanvas(nextFrame);
-
       current = next;
-
-      next =
-        (
-          current + 1
-        ) % media.length;
+      next = (current + 1) % media.length;
 
       transitioning = false;
 
-      ctx.drawImage(
-        accumulatedCanvas,
-        0,
-        0
-      );
+      ctx.drawImage(accumulatedCanvas, 0, 0);
 
       if (callback) {
         callback();
@@ -496,98 +393,61 @@ function animateTransition(callback) {
 }
 
 function playCurrent() {
-
   const item = media[current];
 
-  // VIDEO
   if (item.type === "video") {
-
-    const video =
-      item.element;
+    const video = item.element;
 
     if (video.paused) {
-
       video.currentTime = 0;
-
       video.play();
     }
 
     function drawVideoFrame() {
-
       if (
         !transitioning &&
         media[current] === item
       ) {
-
-        accumulatedCanvas =
-          prepareMediaFrame(
-            item,
-            accumulatedCanvas
-          );
-
-        ctx.drawImage(
-          accumulatedCanvas,
-          0,
-          0
+        accumulatedCanvas = prepareMediaFrame(
+          item,
+          accumulatedCanvas
         );
 
-        requestAnimationFrame(
-          drawVideoFrame
-        );
+        ctx.drawImage(accumulatedCanvas, 0, 0);
+
+        requestAnimationFrame(drawVideoFrame);
       }
     }
 
     drawVideoFrame();
 
     video.onended = () => {
-
-      animateTransition(
-        playCurrent
-      );
+      animateTransition(playCurrent);
     };
-
-  // IMAGE
   } else {
-
-    accumulatedCanvas =
-      prepareMediaFrame(
-        item,
-        accumulatedCanvas
-      );
-
-    ctx.drawImage(
-      accumulatedCanvas,
-      0,
-      0
+    accumulatedCanvas = prepareMediaFrame(
+      item,
+      accumulatedCanvas
     );
 
+    ctx.drawImage(accumulatedCanvas, 0, 0);
+
     setTimeout(() => {
-
       if (!transitioning) {
-
-        animateTransition(
-          playCurrent
-        );
+        animateTransition(playCurrent);
       }
-
     }, IMAGE_HOLD_TIME);
   }
 }
 
 loadMedia(mediaPaths).then(loaded => {
-
   media = loaded;
 
-  accumulatedCanvas =
-    prepareMediaFrame(
-      media[current]
-    );
-
-  ctx.drawImage(
-    accumulatedCanvas,
-    0,
-    0
+  accumulatedCanvas = prepareMediaFrame(
+    media[current]
   );
+
+  ctx.drawImage(accumulatedCanvas, 0, 0);
 
   playCurrent();
 });
