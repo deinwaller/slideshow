@@ -13,7 +13,7 @@ const mediaPaths = [
 ];
 
 const IMAGE_HOLD_TIME = 2000;
-const TRANSITION_DURATION = 900;
+const TRANSITION_DURATION = 1000;
 
 const canvas = document.getElementById("slider");
 const ctx = canvas.getContext("2d");
