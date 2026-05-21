@@ -43,7 +43,8 @@ window.addEventListener("resize", resize);
 resize();
 
 function isVideo(path) {
-  return path.toLowerCase().endsWith(".mp4");
+
+  return /\.(mp4|mov)$/i.test(path);
 }
 
 function loadMedia(paths) {
@@ -111,6 +112,7 @@ function getMediaSize(item) {
   };
 }
 
+// ✨ IMMER VOLLE HÖHE
 function getPlacement(item) {
 
   const cw = canvas.width;
@@ -121,27 +123,15 @@ function getPlacement(item) {
   const iw = size.width;
   const ih = size.height;
 
-  let w;
-  let h;
+  // immer volle Höhe
+  const h = ch;
 
-  // Hochformat
-  if (ih > iw) {
-
-    h = ch;
-    w = (iw / ih) * h;
-
-  // Querformat
-  } else {
-
-    const scale = Math.max(cw / iw, ch / ih);
-
-    w = iw * scale;
-    h = ih * scale;
-  }
+  // proportionale Breite
+  const w = (iw / ih) * h;
 
   return {
     x: (cw - w) / 2,
-    y: (ch - h) / 2,
+    y: 0,
     w,
     h
   };
@@ -217,7 +207,12 @@ function prepareMediaFrame(
 
   // altes Bild behalten
   if (baseCanvas) {
-    offCtx.drawImage(baseCanvas, 0, 0);
+
+    offCtx.drawImage(
+      baseCanvas,
+      0,
+      0
+    );
   }
 
   // neues Medium darüber
@@ -230,12 +225,17 @@ function drawCurrentMedia() {
 
   if (!accumulatedCanvas) {
 
-    accumulatedCanvas = prepareMediaFrame(
-      media[current]
-    );
+    accumulatedCanvas =
+      prepareMediaFrame(
+        media[current]
+      );
   }
 
-  ctx.drawImage(accumulatedCanvas, 0, 0);
+  ctx.drawImage(
+    accumulatedCanvas,
+    0,
+    0
+  );
 }
 
 // organisches Noise
@@ -253,7 +253,11 @@ function noise(x, y) {
 // tonaler Dissolve
 function drawTonalDissolve(nextCanvas) {
 
-  ctx.drawImage(accumulatedCanvas, 0, 0);
+  ctx.drawImage(
+    accumulatedCanvas,
+    0,
+    0
+  );
 
   const currentData = ctx.getImageData(
     0,
@@ -262,7 +266,8 @@ function drawTonalDissolve(nextCanvas) {
     canvas.height
   );
 
-  const nextCtx = nextCanvas.getContext("2d");
+  const nextCtx =
+    nextCanvas.getContext("2d");
 
   const nextData = nextCtx.getImageData(
     0,
@@ -283,17 +288,23 @@ function drawTonalDissolve(nextCanvas) {
 
     for (let x = 0; x < width; x++) {
 
-      const i = (y * width + x) * 4;
+      const i =
+        (y * width + x) * 4;
 
       const r = pixels[i];
       const g = pixels[i + 1];
       const b = pixels[i + 2];
 
       const luminance =
-        (0.299 * r + 0.587 * g + 0.114 * b) / 255;
+        (
+          0.299 * r +
+          0.587 * g +
+          0.114 * b
+        ) / 255;
 
       // hell → dunkel
-      const tonalOrder = 1 - luminance;
+      const tonalOrder =
+        1 - luminance;
 
       const grain =
         noise(
@@ -304,7 +315,10 @@ function drawTonalDissolve(nextCanvas) {
       const threshold =
         tonalOrder + grain;
 
-      if (progress > threshold - softness) {
+      if (
+        progress >
+        threshold - softness
+      ) {
 
         const fade = Math.min(
           1,
@@ -319,16 +333,22 @@ function drawTonalDissolve(nextCanvas) {
         );
 
         pixels[i] =
-          pixels[i] * (1 - fade) +
-          nextPixels[i] * fade;
+          pixels[i] *
+          (1 - fade) +
+          nextPixels[i] *
+          fade;
 
         pixels[i + 1] =
-          pixels[i + 1] * (1 - fade) +
-          nextPixels[i + 1] * fade;
+          pixels[i + 1] *
+          (1 - fade) +
+          nextPixels[i + 1] *
+          fade;
 
         pixels[i + 2] =
-          pixels[i + 2] * (1 - fade) +
-          nextPixels[i + 2] * fade;
+          pixels[i + 2] *
+          (1 - fade) +
+          nextPixels[i + 2] *
+          fade;
 
         pixels[i + 3] = 255;
       }
@@ -348,12 +368,14 @@ function animateTransition(callback) {
 
   progress = 0;
 
-  const nextFrame = prepareMediaFrame(
-    media[next],
-    accumulatedCanvas
-  );
+  const nextFrame =
+    prepareMediaFrame(
+      media[next],
+      accumulatedCanvas
+    );
 
-  const startTime = performance.now();
+  const startTime =
+    performance.now();
 
   function step(now) {
 
@@ -366,7 +388,9 @@ function animateTransition(callback) {
         TRANSITION_DURATION
       ) * 1.05;
 
-    drawTonalDissolve(nextFrame);
+    drawTonalDissolve(
+      nextFrame
+    );
 
     if (
       elapsed <
