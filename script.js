@@ -7,8 +7,8 @@ const mediaPaths = [
   "images/04.jpg",
   "videos/03.mp4",
   "images/05.jpg",
-  "videos/04.mov",
-  "videos/05.mov"
+  "videos/04.mp4",
+  "videos/05.mp4"
 ];
 
 const IMAGE_HOLD_TIME = 2000;
