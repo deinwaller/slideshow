@@ -15,13 +15,14 @@ const mediaPaths = [
 const IMAGE_HOLD_TIME = 2000;
 const TRANSITION_DURATION = 1000;
 
-// kleiner = flüssiger, größer = schärfer
+// kleiner = flüssiger / gröber
+// größer = schärfer / langsamer
 const TRANSITION_SCALE = 0.35;
 
 const canvas = document.getElementById("slider");
 const ctx = canvas.getContext("2d");
 
-ctx.imageSmoothingEnabled = true;
+ctx.imageSmoothingEnabled = false;
 
 let media = [];
 let current = 0;
@@ -207,18 +208,13 @@ function drawCurrentMedia() {
 
 function noise(x, y) {
   return (
-    Math.sin(x * 0.07 + y * 0.031) +
-    Math.sin(x * 0.019 - y * 0.083) +
-    Math.sin(x * 0.113 + y * 0.041) +
-    Math.sin(x * 0.151 - y * 0.097)
-  ) * 0.32 + 0.5;
+    Math.sin(x * 0.031 + y * 0.021) +
+    Math.sin(x * 0.017 - y * 0.029) +
+    Math.sin(x * 0.009 + y * 0.013)
+  ) * 0.33 + 0.5;
 }
 
-function hardStep(edge, x) {
-  return x >= edge ? 1 : 0;
-}
-
-function drawTonalDissolveSmall(nextItem) {
+function drawThresholdDissolveSmall(nextItem) {
   workCtx.drawImage(
     accumulatedCanvas,
     0,
@@ -253,14 +249,9 @@ function drawTonalDissolveSmall(nextItem) {
   const width = workCanvas.width;
   const height = workCanvas.height;
 
-  const grainStrength = 0.42;
-  const tearStrength = 0.16;
-  const edgeFlash = 0.14;
+  const grainStrength = 0.24;
 
   for (let y = 0; y < height; y++) {
-    const rowBreak =
-      Math.sin(y * 0.21 + progress * 18) * tearStrength;
-
     for (let x = 0; x < width; x++) {
       const i = (y * width + x) * 4;
 
@@ -271,43 +262,17 @@ function drawTonalDissolveSmall(nextItem) {
       const luminance =
         (0.299 * r + 0.587 * g + 0.114 * b) / 255;
 
-      // hell → dunkel
+      // hell löst sich zuerst, dunkel zuletzt
       const tonalOrder = 1 - luminance;
 
-      const n =
-        noise(x, y) * grainStrength;
+      const n = noise(x, y) * grainStrength;
 
-      const diagonalTear =
-        Math.sin((x + y) * 0.08 + progress * 20) * 0.08;
+      const threshold = tonalOrder + n;
 
-      const threshold =
-        tonalOrder +
-        n +
-        rowBreak +
-        diagonalTear;
-
-      // härter/zerstörter als smoothstep
-      const fade = hardStep(
-        threshold,
-        progress
-      );
-
-      const nearEdge =
-        Math.abs(progress - threshold) < 0.06 ? 1 : 0;
-
-      if (fade > 0) {
-        pixels[i] =
-          nextPixels[i] +
-          nearEdge * edgeFlash * 255;
-
-        pixels[i + 1] =
-          nextPixels[i + 1] +
-          nearEdge * edgeFlash * 160;
-
-        pixels[i + 2] =
-          nextPixels[i + 2] +
-          nearEdge * edgeFlash * 70;
-
+      if (progress > threshold) {
+        pixels[i] = nextPixels[i];
+        pixels[i + 1] = nextPixels[i + 1];
+        pixels[i + 2] = nextPixels[i + 2];
         pixels[i + 3] = 255;
       }
     }
@@ -316,7 +281,8 @@ function drawTonalDissolveSmall(nextItem) {
   workCtx.putImageData(currentData, 0, 0);
 
   ctx.clearRect(0, 0, canvas.width, canvas.height);
-  ctx.imageSmoothingEnabled = true;
+
+  ctx.imageSmoothingEnabled = false;
 
   ctx.drawImage(
     workCanvas,
@@ -351,7 +317,7 @@ function animateTransition(callback) {
 
     progress = (elapsed / TRANSITION_DURATION) * 1.2;
 
-    drawTonalDissolveSmall(nextItem);
+    drawThresholdDissolveSmall(nextItem);
 
     if (elapsed < TRANSITION_DURATION) {
       requestAnimationFrame(step);
