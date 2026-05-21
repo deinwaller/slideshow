@@ -16,7 +16,7 @@ const IMAGE_HOLD_TIME = 2000;
 const TRANSITION_DURATION = 1000;
 
 // kleiner = smoother, größer = schärfer
-const TRANSITION_SCALE = 0.35;
+const TRANSITION_SCALE = 0.20;
 
 const canvas = document.getElementById("slider");
 const ctx = canvas.getContext("2d");
