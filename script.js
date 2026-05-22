@@ -15,8 +15,8 @@ const mediaPaths = [
 const IMAGE_HOLD_TIME = 2000;
 const TRANSITION_DURATION = 1000;
 
-// kleiner = flüssiger / gröber
-// größer = schärfer / langsamer
+// kleiner = gröber / schneller
+// größer = feiner / langsamer
 const TRANSITION_SCALE = 0.35;
 
 const canvas = document.getElementById("slider");
@@ -30,6 +30,7 @@ let next = 1;
 
 let transitioning = false;
 let progress = 0;
+
 let accumulatedCanvas = null;
 
 const workCanvas = document.createElement("canvas");
@@ -39,50 +40,91 @@ const nextWorkCanvas = document.createElement("canvas");
 const nextWorkCtx = nextWorkCanvas.getContext("2d");
 
 function resize() {
-  canvas.width = document.documentElement.clientWidth;
-  canvas.height = document.documentElement.clientHeight;
 
-  workCanvas.width = Math.max(1, Math.round(canvas.width * TRANSITION_SCALE));
-  workCanvas.height = Math.max(1, Math.round(canvas.height * TRANSITION_SCALE));
+  canvas.width =
+    document.documentElement.clientWidth;
 
-  nextWorkCanvas.width = workCanvas.width;
-  nextWorkCanvas.height = workCanvas.height;
+  canvas.height =
+    document.documentElement.clientHeight;
+
+  workCanvas.width =
+    Math.max(
+      1,
+      Math.round(
+        canvas.width * TRANSITION_SCALE
+      )
+    );
+
+  workCanvas.height =
+    Math.max(
+      1,
+      Math.round(
+        canvas.height * TRANSITION_SCALE
+      )
+    );
+
+  nextWorkCanvas.width =
+    workCanvas.width;
+
+  nextWorkCanvas.height =
+    workCanvas.height;
 
   if (media.length) {
     drawCurrentMedia();
   }
 }
 
-window.addEventListener("resize", resize);
+window.addEventListener(
+  "resize",
+  resize
+);
+
 resize();
 
 function isVideo(path) {
+
   return /\.(mp4|mov)$/i.test(path);
 }
 
 function loadMedia(paths) {
+
   return Promise.all(
+
     paths.map(path => {
+
       return new Promise(resolve => {
+
+        // VIDEO
         if (isVideo(path)) {
-          const video = document.createElement("video");
+
+          const video =
+            document.createElement("video");
 
           video.src = path;
+
           video.muted = true;
           video.playsInline = true;
           video.preload = "auto";
           video.loop = false;
 
-          video.addEventListener("loadeddata", () => {
-            resolve({
-              type: "video",
-              element: video
-            });
-          });
+          video.addEventListener(
+            "loadeddata",
+            () => {
+
+              resolve({
+                type: "video",
+                element: video
+              });
+            }
+          );
+
+        // IMAGE
         } else {
+
           const img = new Image();
 
           img.onload = () => {
+
             resolve({
               type: "image",
               element: img
@@ -97,7 +139,9 @@ function loadMedia(paths) {
 }
 
 function getMediaSize(item) {
+
   if (item.type === "video") {
+
     return {
       width: item.element.videoWidth,
       height: item.element.videoHeight
@@ -110,22 +154,36 @@ function getMediaSize(item) {
   };
 }
 
-function getPlacement(item, targetWidth = canvas.width, targetHeight = canvas.height) {
-  const size = getMediaSize(item);
+function getPlacement(
+  item,
+  targetWidth = canvas.width,
+  targetHeight = canvas.height
+) {
+
+  const size =
+    getMediaSize(item);
 
   const iw = size.width;
   const ih = size.height;
 
-  const mediaRatio = iw / ih;
-  const canvasRatio = targetWidth / targetHeight;
+  const mediaRatio =
+    iw / ih;
+
+  const canvasRatio =
+    targetWidth / targetHeight;
 
   let w;
   let h;
 
   if (mediaRatio > canvasRatio) {
+
+    // breiter → volle Breite
     w = targetWidth;
     h = targetWidth / mediaRatio;
+
   } else {
+
+    // höher → volle Höhe
     h = targetHeight;
     w = targetHeight * mediaRatio;
   }
@@ -138,8 +196,18 @@ function getPlacement(item, targetWidth = canvas.width, targetHeight = canvas.he
   };
 }
 
-function drawMedia(item, targetCtx = ctx, targetWidth = canvas.width, targetHeight = canvas.height) {
-  const p = getPlacement(item, targetWidth, targetHeight);
+function drawMedia(
+  item,
+  targetCtx = ctx,
+  targetWidth = canvas.width,
+  targetHeight = canvas.height
+) {
+
+  const p = getPlacement(
+    item,
+    targetWidth,
+    targetHeight
+  );
 
   targetCtx.drawImage(
     item.element,
@@ -150,37 +218,78 @@ function drawMedia(item, targetCtx = ctx, targetWidth = canvas.width, targetHeig
   );
 }
 
-function prepareMediaFrame(item, baseCanvas = null) {
-  const off = document.createElement("canvas");
+function prepareMediaFrame(
+  item,
+  baseCanvas = null
+) {
+
+  const off =
+    document.createElement("canvas");
 
   off.width = canvas.width;
   off.height = canvas.height;
 
-  const offCtx = off.getContext("2d");
+  const offCtx =
+    off.getContext("2d");
 
   if (!baseCanvas) {
+
     offCtx.fillStyle = "black";
-    offCtx.fillRect(0, 0, off.width, off.height);
+
+    offCtx.fillRect(
+      0,
+      0,
+      off.width,
+      off.height
+    );
   }
 
   if (baseCanvas) {
-    offCtx.drawImage(baseCanvas, 0, 0);
+
+    offCtx.drawImage(
+      baseCanvas,
+      0,
+      0
+    );
   }
 
-  drawMedia(item, offCtx, canvas.width, canvas.height);
+  drawMedia(
+    item,
+    offCtx,
+    canvas.width,
+    canvas.height
+  );
 
   return off;
 }
 
-function prepareSmallFrame(item, baseCanvas = null, targetCtx) {
-  targetCtx.clearRect(0, 0, workCanvas.width, workCanvas.height);
+function prepareSmallFrame(
+  item,
+  baseCanvas = null,
+  targetCtx
+) {
+
+  targetCtx.clearRect(
+    0,
+    0,
+    workCanvas.width,
+    workCanvas.height
+  );
 
   if (!baseCanvas) {
+
     targetCtx.fillStyle = "black";
-    targetCtx.fillRect(0, 0, workCanvas.width, workCanvas.height);
+
+    targetCtx.fillRect(
+      0,
+      0,
+      workCanvas.width,
+      workCanvas.height
+    );
   }
 
   if (baseCanvas) {
+
     targetCtx.drawImage(
       baseCanvas,
       0,
@@ -199,22 +308,27 @@ function prepareSmallFrame(item, baseCanvas = null, targetCtx) {
 }
 
 function drawCurrentMedia() {
+
   if (!accumulatedCanvas) {
-    accumulatedCanvas = prepareMediaFrame(media[current]);
+
+    accumulatedCanvas =
+      prepareMediaFrame(
+        media[current]
+      );
   }
 
-  ctx.drawImage(accumulatedCanvas, 0, 0);
+  ctx.drawImage(
+    accumulatedCanvas,
+    0,
+    0
+  );
 }
 
-function noise(x, y) {
-  return (
-    Math.sin(x * 0.031 + y * 0.021) +
-    Math.sin(x * 0.017 - y * 0.029) +
-    Math.sin(x * 0.009 + y * 0.013)
-  ) * 0.33 + 0.5;
-}
+// ✨ reiner Tonwert-Übergang
+function drawThresholdDissolveSmall(
+  nextItem
+) {
 
-function drawThresholdDissolveSmall(nextItem) {
   workCtx.drawImage(
     accumulatedCanvas,
     0,
@@ -229,58 +343,84 @@ function drawThresholdDissolveSmall(nextItem) {
     nextWorkCtx
   );
 
-  const currentData = workCtx.getImageData(
-    0,
-    0,
-    workCanvas.width,
-    workCanvas.height
-  );
+  const currentData =
+    workCtx.getImageData(
+      0,
+      0,
+      workCanvas.width,
+      workCanvas.height
+    );
 
-  const nextData = nextWorkCtx.getImageData(
-    0,
-    0,
-    nextWorkCanvas.width,
-    nextWorkCanvas.height
-  );
+  const nextData =
+    nextWorkCtx.getImageData(
+      0,
+      0,
+      nextWorkCanvas.width,
+      nextWorkCanvas.height
+    );
 
-  const pixels = currentData.data;
-  const nextPixels = nextData.data;
+  const pixels =
+    currentData.data;
 
-  const width = workCanvas.width;
-  const height = workCanvas.height;
+  const nextPixels =
+    nextData.data;
 
-  const grainStrength = 0.24;
+  const width =
+    workCanvas.width;
+
+  const height =
+    workCanvas.height;
 
   for (let y = 0; y < height; y++) {
+
     for (let x = 0; x < width; x++) {
-      const i = (y * width + x) * 4;
+
+      const i =
+        (y * width + x) * 4;
 
       const r = pixels[i];
       const g = pixels[i + 1];
       const b = pixels[i + 2];
 
       const luminance =
-        (0.299 * r + 0.587 * g + 0.114 * b) / 255;
+        (
+          0.299 * r +
+          0.587 * g +
+          0.114 * b
+        ) / 255;
 
-      // hell löst sich zuerst, dunkel zuletzt
-      const tonalOrder = 1 - luminance;
-
-      const n = noise(x, y) * grainStrength;
-
-      const threshold = tonalOrder + n;
+      // ✨ dunkel → hell
+      const threshold =
+        luminance;
 
       if (progress > threshold) {
-        pixels[i] = nextPixels[i];
-        pixels[i + 1] = nextPixels[i + 1];
-        pixels[i + 2] = nextPixels[i + 2];
+
+        pixels[i] =
+          nextPixels[i];
+
+        pixels[i + 1] =
+          nextPixels[i + 1];
+
+        pixels[i + 2] =
+          nextPixels[i + 2];
+
         pixels[i + 3] = 255;
       }
     }
   }
 
-  workCtx.putImageData(currentData, 0, 0);
+  workCtx.putImageData(
+    currentData,
+    0,
+    0
+  );
 
-  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  ctx.clearRect(
+    0,
+    0,
+    canvas.width,
+    canvas.height
+  );
 
   ctx.imageSmoothingEnabled = false;
 
@@ -294,45 +434,81 @@ function drawThresholdDissolveSmall(nextItem) {
 }
 
 function startVideoIfNeeded(item) {
+
   if (item.type === "video") {
-    const video = item.element;
+
+    const video =
+      item.element;
 
     video.currentTime = 0;
+
     video.play();
   }
 }
 
-function animateTransition(callback) {
+function animateTransition(
+  callback
+) {
+
   transitioning = true;
+
   progress = 0;
 
-  const nextItem = media[next];
+  const nextItem =
+    media[next];
 
-  startVideoIfNeeded(nextItem);
+  // ✨ Video startet VOR dem Übergang
+  startVideoIfNeeded(
+    nextItem
+  );
 
-  const startTime = performance.now();
+  const startTime =
+    performance.now();
 
   function step(now) {
-    const elapsed = now - startTime;
 
-    progress = (elapsed / TRANSITION_DURATION) * 1.2;
+    const elapsed =
+      now - startTime;
 
-    drawThresholdDissolveSmall(nextItem);
+    progress =
+      (
+        elapsed /
+        TRANSITION_DURATION
+      ) * 1.0;
 
-    if (elapsed < TRANSITION_DURATION) {
+    drawThresholdDissolveSmall(
+      nextItem
+    );
+
+    if (
+      elapsed <
+      TRANSITION_DURATION
+    ) {
+
       requestAnimationFrame(step);
+
     } else {
-      accumulatedCanvas = prepareMediaFrame(
-        nextItem,
-        accumulatedCanvas
-      );
+
+      accumulatedCanvas =
+        prepareMediaFrame(
+          nextItem,
+          accumulatedCanvas
+        );
 
       current = next;
-      next = (current + 1) % media.length;
+
+      next =
+        (
+          current + 1
+        ) % media.length;
 
       transitioning = false;
 
-      ctx.drawImage(accumulatedCanvas, 0, 0);
+      ctx.drawImage(
+        accumulatedCanvas,
+        0,
+        0
+      );
 
       if (callback) {
         callback();
@@ -344,77 +520,136 @@ function animateTransition(callback) {
 }
 
 function playCurrent() {
-  const item = media[current];
 
+  const item =
+    media[current];
+
+  // VIDEO
   if (item.type === "video") {
-    const video = item.element;
+
+    const video =
+      item.element;
 
     video.currentTime = 0;
+
     video.play();
 
-    let transitionStarted = false;
+    let transitionStarted =
+      false;
 
     function drawVideoFrame() {
+
       if (
         !transitioning &&
         media[current] === item
       ) {
-        accumulatedCanvas = prepareMediaFrame(
-          item,
-          accumulatedCanvas
+
+        accumulatedCanvas =
+          prepareMediaFrame(
+            item,
+            accumulatedCanvas
+          );
+
+        ctx.drawImage(
+          accumulatedCanvas,
+          0,
+          0
         );
 
-        ctx.drawImage(accumulatedCanvas, 0, 0);
-
         const timeLeft =
-          video.duration - video.currentTime;
+          video.duration -
+          video.currentTime;
 
+        // ✨ Übergang startet
+        // bereits VOR dem Ende
         if (
           !transitionStarted &&
-          Number.isFinite(timeLeft) &&
-          timeLeft <= TRANSITION_DURATION / 1000
+          Number.isFinite(
+            timeLeft
+          ) &&
+          timeLeft <=
+          TRANSITION_DURATION /
+          1000
         ) {
-          transitionStarted = true;
-          animateTransition(playCurrent);
+
+          transitionStarted =
+            true;
+
+          animateTransition(
+            playCurrent
+          );
+
           return;
         }
 
-        requestAnimationFrame(drawVideoFrame);
+        requestAnimationFrame(
+          drawVideoFrame
+        );
       }
     }
 
     drawVideoFrame();
 
     video.onended = () => {
-      if (!transitionStarted && !transitioning) {
-        transitionStarted = true;
-        animateTransition(playCurrent);
+
+      if (
+        !transitionStarted &&
+        !transitioning
+      ) {
+
+        transitionStarted =
+          true;
+
+        animateTransition(
+          playCurrent
+        );
       }
     };
+
+  // IMAGE
   } else {
-    accumulatedCanvas = prepareMediaFrame(
-      item,
-      accumulatedCanvas
+
+    accumulatedCanvas =
+      prepareMediaFrame(
+        item,
+        accumulatedCanvas
+      );
+
+    ctx.drawImage(
+      accumulatedCanvas,
+      0,
+      0
     );
 
-    ctx.drawImage(accumulatedCanvas, 0, 0);
-
     setTimeout(() => {
+
       if (!transitioning) {
-        animateTransition(playCurrent);
+
+        animateTransition(
+          playCurrent
+        );
       }
+
     }, IMAGE_HOLD_TIME);
   }
 }
 
-loadMedia(mediaPaths).then(loaded => {
+loadMedia(
+  mediaPaths
+).then(loaded => {
+
   media = loaded;
 
-  accumulatedCanvas = prepareMediaFrame(
-    media[current]
-  );
+  accumulatedCanvas =
+    prepareMediaFrame(
+      media[current]
+    );
 
-  ctx.drawImage(accumulatedCanvas, 0, 0);
+  ctx.drawImage(
+    accumulatedCanvas,
+    0,
+    0
+  );
 
   playCurrent();
 });
