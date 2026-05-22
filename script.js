@@ -3,7 +3,6 @@ const mediaPaths = [
   "images/02.jpg",
   "videos/06.mp4",
   "images/03.jpg",
-  "videos/02.mp4",
   "images/04.jpg",
   "videos/03.mp4",
   "images/05.jpg",
