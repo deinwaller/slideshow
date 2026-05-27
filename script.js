@@ -1,13 +1,19 @@
 const mediaPaths = [
-  "images/01.jpg",
-  "images/02.jpg",
+  "images/thoman-booklets.jpg",
+  "images/thoman-booklets01.jpg",
   "videos/06.mp4",
-  "images/03.jpg",
-  "images/04.jpg",
+  "images/Albertina01.jpg",
+  "images/Albertina02.jpg",
+  "images/Albertina03.jpg",
   "videos/03.mp4",
-  "images/05.jpg",
+  "images/space-anatomy01.jpg",
+  "images/space-anatomy02.jpg",
+  "images/space-anatomy03.jpg",
+  "images/space-anatomy04.jpg",
+  "images/theater-am-werk.jpg",
   "videos/04.mp4",
   "videos/01.mp4",
+  "images/tdf-clock.jpg",
   "videos/05.mp4"
 ];
 
