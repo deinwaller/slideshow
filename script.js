@@ -16,9 +16,9 @@ const mediaPaths = [
   "images/theater-am-werk.jpg",
   "images/vdh.jpg",
   "videos/06.mp4",
-  "videos/04.mp4",
   "images/tdf-clock.jpg",
-  "videos/05.mp4"
+  "videos/05.mp4",
+  "videos/04.mp4"
 ];
 
 const IMAGE_HOLD_TIME = 2500;
