@@ -34,6 +34,7 @@ const canvas = document.getElementById("slider");
 const ctx = canvas.getContext("2d");
 
 ctx.imageSmoothingEnabled = true;
+ctx.imageSmoothingQuality = "high";
 
 let media = [];
 let current = 0;
@@ -71,28 +72,39 @@ function isVideo(path) {
 }
 
 function loadMedia(paths) {
-  return Promise.all(paths.map(path => {
-    return new Promise(resolve => {
-      if (isVideo(path)) {
-        const video = document.createElement("video");
-        video.src = path;
-        video.muted = true;
-        video.playsInline = true;
-        video.preload = "auto";
-        video.loop = false;
+  return Promise.all(
+    paths.map(path => {
+      return new Promise(resolve => {
+        if (isVideo(path)) {
+          const video = document.createElement("video");
 
-        video.addEventListener("loadeddata", () => {
-          resolve({ type: "video", element: video });
-        });
-      } else {
-        const img = new Image();
-        img.onload = () => {
-          resolve({ type: "image", element: img });
-        };
-        img.src = path;
-      }
-    });
-  }));
+          video.src = path;
+          video.muted = true;
+          video.playsInline = true;
+          video.preload = "auto";
+          video.loop = false;
+
+          video.addEventListener("loadeddata", () => {
+            resolve({
+              type: "video",
+              element: video
+            });
+          });
+        } else {
+          const img = new Image();
+
+          img.onload = () => {
+            resolve({
+              type: "image",
+              element: img
+            });
+          };
+
+          img.src = path;
+        }
+      });
+    })
+  );
 }
 
 function getMediaSize(item) {
@@ -111,7 +123,11 @@ function getMediaSize(item) {
 
 function getPlacement(item, targetWidth = canvas.width, targetHeight = canvas.height) {
   const size = getMediaSize(item);
-  const mediaRatio = size.width / size.height;
+
+  const iw = size.width;
+  const ih = size.height;
+
+  const mediaRatio = iw / ih;
   const canvasRatio = targetWidth / targetHeight;
 
   let w;
@@ -133,10 +149,13 @@ function getPlacement(item, targetWidth = canvas.width, targetHeight = canvas.he
   };
 }
 
-function drawMedia(item, targetCtx = ctx, targetWidth = canvas.width, targetHeight = canvas.height) {
+function drawMedia(
+  item,
+  targetCtx = ctx,
+  targetWidth = canvas.width,
+  targetHeight = canvas.height
+) {
   const p = getPlacement(item, targetWidth, targetHeight);
-
-  targetCtx.imageSmoothingEnabled = true;
 
   targetCtx.drawImage(
     item.element,
@@ -155,7 +174,301 @@ function prepareMediaFrame(item, baseCanvas = null) {
 
   const offCtx = off.getContext("2d");
   offCtx.imageSmoothingEnabled = true;
+  offCtx.imageSmoothingQuality = "high";
 
   if (!baseCanvas) {
     offCtx.fillStyle = "black";
-    offCtx.fill
+    offCtx.fillRect(0, 0, off.width, off.height);
+  }
+
+  if (baseCanvas) {
+    offCtx.drawImage(baseCanvas, 0, 0);
+  }
+
+  drawMedia(
+    item,
+    offCtx,
+    canvas.width,
+    canvas.height
+  );
+
+  return off;
+}
+
+function prepareSmallFrame(item, baseCanvas = null, targetCtx) {
+  targetCtx.clearRect(0, 0, workCanvas.width, workCanvas.height);
+
+  targetCtx.imageSmoothingEnabled = true;
+  targetCtx.imageSmoothingQuality = "high";
+
+  if (!baseCanvas) {
+    targetCtx.fillStyle = "black";
+    targetCtx.fillRect(0, 0, workCanvas.width, workCanvas.height);
+  }
+
+  if (baseCanvas) {
+    targetCtx.drawImage(
+      baseCanvas,
+      0,
+      0,
+      workCanvas.width,
+      workCanvas.height
+    );
+  }
+
+  drawMedia(
+    item,
+    targetCtx,
+    workCanvas.width,
+    workCanvas.height
+  );
+}
+
+function drawCurrentMedia() {
+  if (!accumulatedCanvas) {
+    accumulatedCanvas = prepareMediaFrame(media[current]);
+  }
+
+  ctx.imageSmoothingEnabled = true;
+  ctx.imageSmoothingQuality = "high";
+
+  ctx.drawImage(
+    accumulatedCanvas,
+    0,
+    0
+  );
+}
+
+function drawThresholdDissolveSmall(nextItem) {
+  workCtx.imageSmoothingEnabled = true;
+  workCtx.imageSmoothingQuality = "high";
+
+  workCtx.drawImage(
+    accumulatedCanvas,
+    0,
+    0,
+    workCanvas.width,
+    workCanvas.height
+  );
+
+  prepareSmallFrame(
+    nextItem,
+    accumulatedCanvas,
+    nextWorkCtx
+  );
+
+  const currentData = workCtx.getImageData(
+    0,
+    0,
+    workCanvas.width,
+    workCanvas.height
+  );
+
+  const nextData = nextWorkCtx.getImageData(
+    0,
+    0,
+    nextWorkCanvas.width,
+    nextWorkCanvas.height
+  );
+
+  const pixels = currentData.data;
+  const nextPixels = nextData.data;
+
+  const width = workCanvas.width;
+  const height = workCanvas.height;
+
+  for (let y = 0; y < height; y++) {
+    for (let x = 0; x < width; x++) {
+      const i = (y * width + x) * 4;
+
+      const r = pixels[i];
+      const g = pixels[i + 1];
+      const b = pixels[i + 2];
+
+      const luminance =
+        (0.299 * r + 0.587 * g + 0.114 * b) / 255;
+
+      const threshold = luminance;
+
+      if (progress > threshold) {
+        pixels[i] = nextPixels[i];
+        pixels[i + 1] = nextPixels[i + 1];
+        pixels[i + 2] = nextPixels[i + 2];
+        pixels[i + 3] = 255;
+      }
+    }
+  }
+
+  workCtx.putImageData(
+    currentData,
+    0,
+    0
+  );
+
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+  // Nur der Übergang wird bitmap-artig hochskaliert
+  ctx.imageSmoothingEnabled = false;
+
+  ctx.drawImage(
+    workCanvas,
+    0,
+    0,
+    canvas.width,
+    canvas.height
+  );
+}
+
+function startVideoIfNeeded(item) {
+  if (item.type === "video") {
+    const video = item.element;
+
+    video.currentTime = 0;
+    video.play();
+  }
+}
+
+function animateTransition(callback) {
+  transitioning = true;
+  progress = 0;
+
+  const nextItem = media[next];
+
+  startVideoIfNeeded(nextItem);
+
+  const startTime = performance.now();
+
+  function step(now) {
+    const elapsed = now - startTime;
+
+    progress = (elapsed / TRANSITION_DURATION) * 1.0;
+
+    drawThresholdDissolveSmall(nextItem);
+
+    if (elapsed < TRANSITION_DURATION) {
+      requestAnimationFrame(step);
+    } else {
+      accumulatedCanvas = prepareMediaFrame(
+        nextItem,
+        accumulatedCanvas
+      );
+
+      current = next;
+      next = (current + 1) % media.length;
+
+      transitioning = false;
+
+      ctx.imageSmoothingEnabled = true;
+      ctx.imageSmoothingQuality = "high";
+
+      ctx.drawImage(
+        accumulatedCanvas,
+        0,
+        0
+      );
+
+      if (callback) {
+        callback();
+      }
+    }
+  }
+
+  requestAnimationFrame(step);
+}
+
+function playCurrent() {
+  const item = media[current];
+
+  if (item.type === "video") {
+    const video = item.element;
+
+    video.currentTime = 0;
+    video.play();
+
+    let transitionStarted = false;
+
+    function drawVideoFrame() {
+      if (
+        !transitioning &&
+        media[current] === item
+      ) {
+        accumulatedCanvas = prepareMediaFrame(
+          item,
+          accumulatedCanvas
+        );
+
+        ctx.imageSmoothingEnabled = true;
+        ctx.imageSmoothingQuality = "high";
+
+        ctx.drawImage(
+          accumulatedCanvas,
+          0,
+          0
+        );
+
+        const timeLeft =
+          video.duration - video.currentTime;
+
+        if (
+          !transitionStarted &&
+          Number.isFinite(timeLeft) &&
+          timeLeft <= TRANSITION_DURATION / 1000
+        ) {
+          transitionStarted = true;
+          animateTransition(playCurrent);
+          return;
+        }
+
+        requestAnimationFrame(drawVideoFrame);
+      }
+    }
+
+    drawVideoFrame();
+
+    video.onended = () => {
+      if (!transitionStarted && !transitioning) {
+        transitionStarted = true;
+        animateTransition(playCurrent);
+      }
+    };
+  } else {
+    accumulatedCanvas = prepareMediaFrame(
+      item,
+      accumulatedCanvas
+    );
+
+    ctx.imageSmoothingEnabled = true;
+    ctx.imageSmoothingQuality = "high";
+
+    ctx.drawImage(
+      accumulatedCanvas,
+      0,
+      0
+    );
+
+    setTimeout(() => {
+      if (!transitioning) {
+        animateTransition(playCurrent);
+      }
+    }, IMAGE_HOLD_TIME);
+  }
+}
+
+loadMedia(mediaPaths).then(loaded => {
+  media = loaded;
+
+  accumulatedCanvas = prepareMediaFrame(
+    media[current]
+  );
+
+  ctx.imageSmoothingEnabled = true;
+  ctx.imageSmoothingQuality = "high";
+
+  ctx.drawImage(
+    accumulatedCanvas,
+    0,
+    0
+  );
+
+  playCurrent();
+});
