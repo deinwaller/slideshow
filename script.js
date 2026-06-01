@@ -50,6 +50,16 @@ const workCtx = workCanvas.getContext("2d");
 const nextWorkCanvas = document.createElement("canvas");
 const nextWorkCtx = nextWorkCanvas.getContext("2d");
 
+// versteckte DOM-Schicht für GIFs
+const gifLayer = document.createElement("div");
+gifLayer.style.position = "fixed";
+gifLayer.style.left = "-9999px";
+gifLayer.style.top = "-9999px";
+gifLayer.style.width = "1px";
+gifLayer.style.height = "1px";
+gifLayer.style.overflow = "hidden";
+document.body.appendChild(gifLayer);
+
 function resize() {
   canvas.width = document.documentElement.clientWidth;
   canvas.height = document.documentElement.clientHeight;
@@ -92,16 +102,22 @@ function loadMedia(paths) {
           video.addEventListener("loadeddata", () => {
             resolve({
               type: "video",
-              element: video
+              element: video,
+              src: path
             });
           });
         } else {
           const img = new Image();
 
           img.onload = () => {
+            if (isGif(path)) {
+              gifLayer.appendChild(img);
+            }
+
             resolve({
               type: isGif(path) ? "gif" : "image",
-              element: img
+              element: img,
+              src: path
             });
           };
 
@@ -419,6 +435,11 @@ function playCurrent() {
       }
     };
   } else if (item.type === "gif") {
+    const img = item.element;
+
+    img.src = "";
+    img.src = item.src;
+
     const startTime = performance.now();
 
     function drawGifFrame(now) {
