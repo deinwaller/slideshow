@@ -1,4 +1,5 @@
 const mediaPaths = [
+  "images/toulouse.gif",
   "images/galerie_00.jpg",
   "images/thoman-booklets.jpg",
   "images/thoman-booklets01.jpg",
