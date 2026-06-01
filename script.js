@@ -18,7 +18,7 @@ const mediaPaths = [
   "videos/05.mp4"
 ];
 
-const IMAGE_HOLD_TIME = 2000;
+const IMAGE_HOLD_TIME = 2500;
 const TRANSITION_DURATION = 1000;
 
 // kleiner = gröber / schneller
