@@ -5,6 +5,7 @@ const mediaPaths = [
   "images/Albertina01.jpg",
   "images/Albertina02.jpg",
   "images/Albertina03.jpg",
+  "images/Albertina04.jpg",
   "videos/03.mp4",
   "images/space-anatomy01.jpg",
   "images/space-anatomy02.jpg",
