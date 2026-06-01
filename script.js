@@ -1,6 +1,7 @@
 const mediaPaths = [
   "images/thoman-booklets.jpg",
   "images/thoman-booklets01.jpg",
+  "videos/01.mp4",
   "videos/06.mp4",
   "images/Albertina01.jpg",
   "images/Albertina02.jpg",
@@ -13,7 +14,6 @@ const mediaPaths = [
   "images/space-anatomy04.jpg",
   "images/theater-am-werk.jpg",
   "videos/04.mp4",
-  "videos/01.mp4",
   "images/tdf-clock.jpg",
   "videos/05.mp4"
 ];
