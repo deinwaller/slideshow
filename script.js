@@ -27,6 +27,7 @@ const mediaPaths = [
 ];
 
 const IMAGE_HOLD_TIME = 2500;
+const GIF_HOLD_TIME = 4000;
 const TRANSITION_DURATION = 1000;
 const TRANSITION_SCALE = 0.8;
 
@@ -71,6 +72,10 @@ function isVideo(path) {
   return /\.(mp4|mov)$/i.test(path);
 }
 
+function isGif(path) {
+  return /\.gif$/i.test(path);
+}
+
 function loadMedia(paths) {
   return Promise.all(
     paths.map(path => {
@@ -95,7 +100,7 @@ function loadMedia(paths) {
 
           img.onload = () => {
             resolve({
-              type: "image",
+              type: isGif(path) ? "gif" : "image",
               element: img
             });
           };
@@ -232,11 +237,7 @@ function drawCurrentMedia() {
   ctx.imageSmoothingEnabled = true;
   ctx.imageSmoothingQuality = "high";
 
-  ctx.drawImage(
-    accumulatedCanvas,
-    0,
-    0
-  );
+  ctx.drawImage(accumulatedCanvas, 0, 0);
 }
 
 function drawThresholdDissolveSmall(nextItem) {
@@ -299,15 +300,10 @@ function drawThresholdDissolveSmall(nextItem) {
     }
   }
 
-  workCtx.putImageData(
-    currentData,
-    0,
-    0
-  );
+  workCtx.putImageData(currentData, 0, 0);
 
   ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-  // Nur der Übergang wird bitmap-artig hochskaliert
   ctx.imageSmoothingEnabled = false;
 
   ctx.drawImage(
@@ -341,7 +337,7 @@ function animateTransition(callback) {
   function step(now) {
     const elapsed = now - startTime;
 
-    progress = (elapsed / TRANSITION_DURATION) * 1.0;
+    progress = elapsed / TRANSITION_DURATION;
 
     drawThresholdDissolveSmall(nextItem);
 
@@ -361,11 +357,7 @@ function animateTransition(callback) {
       ctx.imageSmoothingEnabled = true;
       ctx.imageSmoothingQuality = "high";
 
-      ctx.drawImage(
-        accumulatedCanvas,
-        0,
-        0
-      );
+      ctx.drawImage(accumulatedCanvas, 0, 0);
 
       if (callback) {
         callback();
@@ -400,14 +392,9 @@ function playCurrent() {
         ctx.imageSmoothingEnabled = true;
         ctx.imageSmoothingQuality = "high";
 
-        ctx.drawImage(
-          accumulatedCanvas,
-          0,
-          0
-        );
+        ctx.drawImage(accumulatedCanvas, 0, 0);
 
-        const timeLeft =
-          video.duration - video.currentTime;
+        const timeLeft = video.duration - video.currentTime;
 
         if (
           !transitionStarted &&
@@ -431,6 +418,34 @@ function playCurrent() {
         animateTransition(playCurrent);
       }
     };
+  } else if (item.type === "gif") {
+    const startTime = performance.now();
+
+    function drawGifFrame(now) {
+      if (
+        !transitioning &&
+        media[current] === item
+      ) {
+        accumulatedCanvas = prepareMediaFrame(
+          item,
+          accumulatedCanvas
+        );
+
+        ctx.imageSmoothingEnabled = true;
+        ctx.imageSmoothingQuality = "high";
+
+        ctx.drawImage(accumulatedCanvas, 0, 0);
+
+        if (now - startTime >= GIF_HOLD_TIME) {
+          animateTransition(playCurrent);
+          return;
+        }
+
+        requestAnimationFrame(drawGifFrame);
+      }
+    }
+
+    requestAnimationFrame(drawGifFrame);
   } else {
     accumulatedCanvas = prepareMediaFrame(
       item,
@@ -440,11 +455,7 @@ function playCurrent() {
     ctx.imageSmoothingEnabled = true;
     ctx.imageSmoothingQuality = "high";
 
-    ctx.drawImage(
-      accumulatedCanvas,
-      0,
-      0
-    );
+    ctx.drawImage(accumulatedCanvas, 0, 0);
 
     setTimeout(() => {
       if (!transitioning) {
@@ -464,11 +475,7 @@ loadMedia(mediaPaths).then(loaded => {
   ctx.imageSmoothingEnabled = true;
   ctx.imageSmoothingQuality = "high";
 
-  ctx.drawImage(
-    accumulatedCanvas,
-    0,
-    0
-  );
+  ctx.drawImage(accumulatedCanvas, 0, 0);
 
   playCurrent();
 });
