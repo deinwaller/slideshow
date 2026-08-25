@@ -36,7 +36,7 @@ const mediaPaths = [
 "images/A_Kindheit-D35.jpg"
 ];
 
-const IMAGE_HOLD_TIME = 2500;
+const IMAGE_HOLD_TIME = 3000;
 const GIF_HOLD_TIME = 4000;
 const TRANSITION_DURATION = 1000;
 const TRANSITION_SCALE = 0.8;
