@@ -79,7 +79,7 @@ const mediaPaths = [
 const IMAGE_HOLD_TIME = 4500;
 const GIF_HOLD_TIME = 4000;
 const TRANSITION_DURATION = 1000;
-const TRANSITION_SCALE = 0.8;
+const TRANSITION_SCALE = 0.3;
 
 const canvas = document.getElementById("slider");
 const ctx = canvas.getContext("2d");
