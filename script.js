@@ -283,7 +283,7 @@ const mediaPaths = [
 ];
 
 
-const IMAGE_HOLD_TIME = 4500;
+const IMAGE_HOLD_TIME = 1500;
 const GIF_HOLD_TIME = 4000;
 const TRANSITION_DURATION = 1000;
 const TRANSITION_SCALE = 0.5;
@@ -296,23 +296,39 @@ ctx.imageSmoothingEnabled = true;
 ctx.imageSmoothingQuality = "high";
 
 
-let media = [];
+/*
+  Für jeden Pfad gibt es einen Slot.
+  Noch nicht geladene Medien sind null.
+*/
+let media = new Array(mediaPaths.length).fill(null);
+
+let loadingPromises =
+  new Array(mediaPaths.length).fill(null);
+
 let current = 0;
 let next = 1;
+
 let transitioning = false;
 let progress = 0;
 let accumulatedCanvas = null;
 
 
-const workCanvas = document.createElement("canvas");
-const workCtx = workCanvas.getContext("2d");
+const workCanvas =
+  document.createElement("canvas");
 
-const nextWorkCanvas = document.createElement("canvas");
-const nextWorkCtx = nextWorkCanvas.getContext("2d");
+const workCtx =
+  workCanvas.getContext("2d");
+
+const nextWorkCanvas =
+  document.createElement("canvas");
+
+const nextWorkCtx =
+  nextWorkCanvas.getContext("2d");
 
 
 // versteckte DOM-Schicht für GIFs
-const gifLayer = document.createElement("div");
+const gifLayer =
+  document.createElement("div");
 
 gifLayer.style.position = "fixed";
 gifLayer.style.left = "-9999px";
@@ -325,29 +341,55 @@ document.body.appendChild(gifLayer);
 
 
 function resize() {
-  canvas.width = document.documentElement.clientWidth;
-  canvas.height = document.documentElement.clientHeight;
+
+  canvas.width =
+    document.documentElement.clientWidth;
+
+  canvas.height =
+    document.documentElement.clientHeight;
 
   workCanvas.width = Math.max(
     1,
-    Math.round(canvas.width * TRANSITION_SCALE)
+    Math.round(
+      canvas.width * TRANSITION_SCALE
+    )
   );
 
   workCanvas.height = Math.max(
     1,
-    Math.round(canvas.height * TRANSITION_SCALE)
+    Math.round(
+      canvas.height * TRANSITION_SCALE
+    )
   );
 
-  nextWorkCanvas.width = workCanvas.width;
-  nextWorkCanvas.height = workCanvas.height;
+  nextWorkCanvas.width =
+    workCanvas.width;
 
-  if (media.length) {
+  nextWorkCanvas.height =
+    workCanvas.height;
+
+
+  /*
+    Nur zeichnen, wenn das aktuelle
+    Medium bereits geladen wurde.
+  */
+  if (media[current]) {
+
+    accumulatedCanvas =
+      prepareMediaFrame(
+        media[current]
+      );
+
     drawCurrentMedia();
   }
 }
 
 
-window.addEventListener("resize", resize);
+window.addEventListener(
+  "resize",
+  resize
+);
+
 resize();
 
 
@@ -362,93 +404,185 @@ function isGif(path) {
 
 
 /*
-  Lädt alle Medien.
-
-  WICHTIG:
-  Wenn eine Datei nicht gefunden wird, wird sie übersprungen.
-  Dadurch blockiert eine einzelne fehlerhafte Datei nicht mehr
-  die komplette Slideshow.
+  EIN einzelnes Medium laden
 */
-function loadMedia(paths) {
-  return Promise.all(
-    paths.map(path => {
-      return new Promise(resolve => {
+function loadSingleMedia(path) {
 
-        if (isVideo(path)) {
-          const video = document.createElement("video");
+  return new Promise(resolve => {
 
-          video.src = path;
-          video.muted = true;
-          video.playsInline = true;
-          video.preload = "auto";
-          video.loop = false;
+    if (isVideo(path)) {
 
-          video.addEventListener("loadeddata", () => {
-            console.log("Video geladen:", path);
+      const video =
+        document.createElement("video");
 
-            resolve({
-              type: "video",
-              element: video,
-              src: path
-            });
+      video.src = path;
+      video.muted = true;
+      video.playsInline = true;
+      video.preload = "auto";
+      video.loop = false;
+
+
+      video.addEventListener(
+        "loadeddata",
+        () => {
+
+          console.log(
+            "Video geladen:",
+            path
+          );
+
+          resolve({
+            type: "video",
+            element: video,
+            src: path
           });
+        },
+        { once: true }
+      );
 
-          video.addEventListener("error", () => {
-            console.error(
-              "Video konnte nicht geladen werden:",
-              path
-            );
 
-            resolve(null);
-          });
+      video.addEventListener(
+        "error",
+        () => {
 
-        } else {
-          const img = new Image();
+          console.error(
+            "Video konnte nicht geladen werden:",
+            path
+          );
 
-          img.onload = () => {
-            console.log("Bild geladen:", path);
+          resolve(null);
+        },
+        { once: true }
+      );
 
-            if (isGif(path)) {
-              gifLayer.appendChild(img);
-            }
 
-            resolve({
-              type: isGif(path) ? "gif" : "image",
-              element: img,
-              src: path
-            });
-          };
+    } else {
 
-          img.onerror = () => {
-            console.error(
-              "Bild konnte nicht geladen werden:",
-              path
-            );
+      const img = new Image();
 
-            resolve(null);
-          };
 
-          img.src = path;
+      img.onload = () => {
+
+        console.log(
+          "Bild geladen:",
+          path
+        );
+
+        if (isGif(path)) {
+          gifLayer.appendChild(img);
         }
-      });
-    })
-  ).then(items => {
-    return items.filter(Boolean);
+
+        resolve({
+          type:
+            isGif(path)
+              ? "gif"
+              : "image",
+
+          element: img,
+          src: path
+        });
+      };
+
+
+      img.onerror = () => {
+
+        console.error(
+          "Bild konnte nicht geladen werden:",
+          path
+        );
+
+        resolve(null);
+      };
+
+
+      img.src = path;
+    }
   });
 }
 
 
+/*
+  Medium an einer bestimmten Position laden.
+
+  Wenn es bereits geladen wird oder geladen wurde,
+  wird keine zweite Anfrage gestartet.
+*/
+function loadMediaAt(index) {
+
+  if (media[index]) {
+    return Promise.resolve(
+      media[index]
+    );
+  }
+
+
+  if (loadingPromises[index]) {
+    return loadingPromises[index];
+  }
+
+
+  loadingPromises[index] =
+    loadSingleMedia(
+      mediaPaths[index]
+    )
+      .then(item => {
+
+        media[index] = item;
+
+        return item;
+      });
+
+
+  return loadingPromises[index];
+}
+
+
+/*
+  Restliche Medien im Hintergrund laden.
+
+  Die Slideshow wartet NICHT darauf.
+*/
+async function preloadRemainingMedia() {
+
+  for (
+    let i = 0;
+    i < mediaPaths.length;
+    i++
+  ) {
+
+    if (!media[i]) {
+      await loadMediaAt(i);
+    }
+  }
+
+  console.log(
+    "Hintergrund-Preloading abgeschlossen."
+  );
+}
+
+
 function getMediaSize(item) {
+
   if (item.type === "video") {
+
     return {
-      width: item.element.videoWidth,
-      height: item.element.videoHeight
+      width:
+        item.element.videoWidth,
+
+      height:
+        item.element.videoHeight
     };
   }
 
+
   return {
-    width: item.element.width,
-    height: item.element.height
+    width:
+      item.element.naturalWidth ||
+      item.element.width,
+
+    height:
+      item.element.naturalHeight ||
+      item.element.height
   };
 }
 
@@ -458,28 +592,50 @@ function getPlacement(
   targetWidth = canvas.width,
   targetHeight = canvas.height
 ) {
-  const size = getMediaSize(item);
+
+  const size =
+    getMediaSize(item);
 
   const iw = size.width;
   const ih = size.height;
 
-  const mediaRatio = iw / ih;
-  const canvasRatio = targetWidth / targetHeight;
+  const mediaRatio =
+    iw / ih;
+
+  const canvasRatio =
+    targetWidth / targetHeight;
 
   let w;
   let h;
 
-  if (mediaRatio > canvasRatio) {
+
+  if (
+    mediaRatio >
+    canvasRatio
+  ) {
+
     w = targetWidth;
-    h = targetWidth / mediaRatio;
+    h =
+      targetWidth /
+      mediaRatio;
+
   } else {
+
     h = targetHeight;
-    w = targetHeight * mediaRatio;
+    w =
+      targetHeight *
+      mediaRatio;
   }
 
+
   return {
-    x: (targetWidth - w) / 2,
-    y: (targetHeight - h) / 2,
+
+    x:
+      (targetWidth - w) / 2,
+
+    y:
+      (targetHeight - h) / 2,
+
     w,
     h
   };
@@ -492,11 +648,19 @@ function drawMedia(
   targetWidth = canvas.width,
   targetHeight = canvas.height
 ) {
-  const p = getPlacement(
-    item,
-    targetWidth,
-    targetHeight
-  );
+
+  if (!item) {
+    return;
+  }
+
+
+  const p =
+    getPlacement(
+      item,
+      targetWidth,
+      targetHeight
+    );
+
 
   targetCtx.drawImage(
     item.element,
@@ -512,18 +676,36 @@ function prepareMediaFrame(
   item,
   baseCanvas = null
 ) {
-  const off = document.createElement("canvas");
 
-  off.width = canvas.width;
-  off.height = canvas.height;
+  const off =
+    document.createElement(
+      "canvas"
+    );
 
-  const offCtx = off.getContext("2d");
 
-  offCtx.imageSmoothingEnabled = true;
-  offCtx.imageSmoothingQuality = "high";
+  off.width =
+    canvas.width;
+
+  off.height =
+    canvas.height;
+
+
+  const offCtx =
+    off.getContext("2d");
+
+
+  offCtx.imageSmoothingEnabled =
+    true;
+
+  offCtx.imageSmoothingQuality =
+    "high";
+
 
   if (!baseCanvas) {
-    offCtx.fillStyle = "black";
+
+    offCtx.fillStyle =
+      "black";
+
     offCtx.fillRect(
       0,
       0,
@@ -532,7 +714,9 @@ function prepareMediaFrame(
     );
   }
 
+
   if (baseCanvas) {
+
     offCtx.drawImage(
       baseCanvas,
       0,
@@ -540,12 +724,14 @@ function prepareMediaFrame(
     );
   }
 
+
   drawMedia(
     item,
     offCtx,
     canvas.width,
     canvas.height
   );
+
 
   return off;
 }
@@ -556,6 +742,7 @@ function prepareSmallFrame(
   baseCanvas = null,
   targetCtx
 ) {
+
   targetCtx.clearRect(
     0,
     0,
@@ -563,11 +750,18 @@ function prepareSmallFrame(
     workCanvas.height
   );
 
-  targetCtx.imageSmoothingEnabled = true;
-  targetCtx.imageSmoothingQuality = "high";
+
+  targetCtx.imageSmoothingEnabled =
+    true;
+
+  targetCtx.imageSmoothingQuality =
+    "high";
+
 
   if (!baseCanvas) {
-    targetCtx.fillStyle = "black";
+
+    targetCtx.fillStyle =
+      "black";
 
     targetCtx.fillRect(
       0,
@@ -577,7 +771,9 @@ function prepareSmallFrame(
     );
   }
 
+
   if (baseCanvas) {
+
     targetCtx.drawImage(
       baseCanvas,
       0,
@@ -586,6 +782,7 @@ function prepareSmallFrame(
       workCanvas.height
     );
   }
+
 
   drawMedia(
     item,
@@ -597,18 +794,27 @@ function prepareSmallFrame(
 
 
 function drawCurrentMedia() {
-  if (!media.length) {
+
+  if (!media[current]) {
     return;
   }
 
+
   if (!accumulatedCanvas) {
-    accumulatedCanvas = prepareMediaFrame(
-      media[current]
-    );
+
+    accumulatedCanvas =
+      prepareMediaFrame(
+        media[current]
+      );
   }
 
-  ctx.imageSmoothingEnabled = true;
-  ctx.imageSmoothingQuality = "high";
+
+  ctx.imageSmoothingEnabled =
+    true;
+
+  ctx.imageSmoothingQuality =
+    "high";
+
 
   ctx.drawImage(
     accumulatedCanvas,
@@ -618,9 +824,16 @@ function drawCurrentMedia() {
 }
 
 
-function drawThresholdDissolveSmall(nextItem) {
-  workCtx.imageSmoothingEnabled = true;
-  workCtx.imageSmoothingQuality = "high";
+function drawThresholdDissolveSmall(
+  nextItem
+) {
+
+  workCtx.imageSmoothingEnabled =
+    true;
+
+  workCtx.imageSmoothingQuality =
+    "high";
+
 
   workCtx.drawImage(
     accumulatedCanvas,
@@ -630,63 +843,111 @@ function drawThresholdDissolveSmall(nextItem) {
     workCanvas.height
   );
 
+
   prepareSmallFrame(
     nextItem,
     accumulatedCanvas,
     nextWorkCtx
   );
 
-  const currentData = workCtx.getImageData(
-    0,
-    0,
-    workCanvas.width,
-    workCanvas.height
-  );
 
-  const nextData = nextWorkCtx.getImageData(
-    0,
-    0,
-    nextWorkCanvas.width,
-    nextWorkCanvas.height
-  );
+  const currentData =
+    workCtx.getImageData(
+      0,
+      0,
+      workCanvas.width,
+      workCanvas.height
+    );
 
-  const pixels = currentData.data;
-  const nextPixels = nextData.data;
 
-  const width = workCanvas.width;
-  const height = workCanvas.height;
+  const nextData =
+    nextWorkCtx.getImageData(
+      0,
+      0,
+      nextWorkCanvas.width,
+      nextWorkCanvas.height
+    );
 
-  for (let y = 0; y < height; y++) {
-    for (let x = 0; x < width; x++) {
 
-      const i = (y * width + x) * 4;
+  const pixels =
+    currentData.data;
 
-      const r = pixels[i];
-      const g = pixels[i + 1];
-      const b = pixels[i + 2];
+  const nextPixels =
+    nextData.data;
+
+
+  const width =
+    workCanvas.width;
+
+  const height =
+    workCanvas.height;
+
+
+  for (
+    let y = 0;
+    y < height;
+    y++
+  ) {
+
+    for (
+      let x = 0;
+      x < width;
+      x++
+    ) {
+
+      const i =
+        (y * width + x) * 4;
+
+
+      const r =
+        pixels[i];
+
+      const g =
+        pixels[i + 1];
+
+      const b =
+        pixels[i + 2];
+
 
       const luminance =
-        (0.299 * r +
+        (
+          0.299 * r +
           0.587 * g +
-          0.114 * b) /
-        255;
+          0.114 * b
+        ) / 255;
 
-      const threshold = luminance;
 
-      if (progress > threshold) {
-        pixels[i] = nextPixels[i];
-        pixels[i + 1] = nextPixels[i + 1];
-        pixels[i + 2] = nextPixels[i + 2];
-        pixels[i + 3] = 255;
+      const threshold =
+        luminance;
+
+
+      if (
+        progress >
+        threshold
+      ) {
+
+        pixels[i] =
+          nextPixels[i];
+
+        pixels[i + 1] =
+          nextPixels[i + 1];
+
+        pixels[i + 2] =
+          nextPixels[i + 2];
+
+        pixels[i + 3] =
+          255;
       }
     }
   }
+
 
   workCtx.putImageData(
     currentData,
     0,
     0
   );
+
 
   ctx.clearRect(
     0,
@@ -695,7 +956,10 @@ function drawThresholdDissolveSmall(nextItem) {
     canvas.height
   );
 
-  ctx.imageSmoothingEnabled = false;
+
+  ctx.imageSmoothingEnabled =
+    false;
+
 
   ctx.drawImage(
     workCanvas,
@@ -707,74 +971,198 @@ function drawThresholdDissolveSmall(nextItem) {
 }
 
 
-function startVideoIfNeeded(item) {
-  if (item.type === "video") {
-    const video = item.element;
+function startVideoIfNeeded(
+  item
+) {
+
+  if (
+    item &&
+    item.type === "video"
+  ) {
+
+    const video =
+      item.element;
+
 
     video.currentTime = 0;
 
-    const playPromise = video.play();
 
-    if (playPromise !== undefined) {
-      playPromise.catch(error => {
-        console.warn(
-          "Video konnte nicht automatisch gestartet werden:",
-          item.src,
-          error
-        );
-      });
+    const playPromise =
+      video.play();
+
+
+    if (
+      playPromise !==
+      undefined
+    ) {
+
+      playPromise.catch(
+        error => {
+
+          console.warn(
+            "Video konnte nicht automatisch gestartet werden:",
+            item.src,
+            error
+          );
+        }
+      );
     }
   }
 }
 
 
-function animateTransition(callback) {
+/*
+  Nächstes funktionierendes Medium suchen.
 
-  /*
-    Falls nur ein einziges Medium geladen werden konnte,
-    gibt es keinen Übergang.
-  */
-  if (media.length <= 1) {
+  Falls eine Datei noch nicht geladen wurde,
+  wird sie genau jetzt geladen.
+
+  Falls eine Datei kaputt ist,
+  wird automatisch weitergesucht.
+*/
+async function getNextAvailableMedia() {
+
+  let candidate =
+    next;
+
+  let attempts = 0;
+
+
+  while (
+    attempts <
+    mediaPaths.length
+  ) {
+
+    const item =
+      await loadMediaAt(
+        candidate
+      );
+
+
+    if (item) {
+
+      next =
+        candidate;
+
+      return item;
+    }
+
+
+    candidate =
+      (
+        candidate + 1
+      ) %
+      mediaPaths.length;
+
+
+    attempts++;
+  }
+
+
+  return null;
+}
+
+
+/*
+  ÜBERGANG
+*/
+async function animateTransition(
+  callback
+) {
+
+  if (transitioning) {
     return;
   }
 
+
   transitioning = true;
+
+
+  const nextItem =
+    await getNextAvailableMedia();
+
+
+  if (!nextItem) {
+
+    console.error(
+      "Keine weiteren Medien verfügbar."
+    );
+
+    transitioning = false;
+
+    return;
+  }
+
+
   progress = 0;
 
-  const nextItem = media[next];
 
-  startVideoIfNeeded(nextItem);
+  startVideoIfNeeded(
+    nextItem
+  );
 
-  const startTime = performance.now();
+
+  const startTime =
+    performance.now();
+
 
   function step(now) {
-    const elapsed = now - startTime;
 
-    progress = Math.min(
-      1,
-      elapsed / TRANSITION_DURATION
-    );
+    const elapsed =
+      now - startTime;
+
+
+    progress =
+      Math.min(
+        1,
+        elapsed /
+        TRANSITION_DURATION
+      );
+
 
     drawThresholdDissolveSmall(
       nextItem
     );
 
-    if (elapsed < TRANSITION_DURATION) {
-      requestAnimationFrame(step);
-    } else {
 
-      accumulatedCanvas = prepareMediaFrame(
-        nextItem,
-        accumulatedCanvas
+    if (
+      elapsed <
+      TRANSITION_DURATION
+    ) {
+
+      requestAnimationFrame(
+        step
       );
 
+    } else {
+
+      accumulatedCanvas =
+        prepareMediaFrame(
+          nextItem,
+          accumulatedCanvas
+        );
+
+
       current = next;
-      next = (current + 1) % media.length;
 
-      transitioning = false;
 
-      ctx.imageSmoothingEnabled = true;
-      ctx.imageSmoothingQuality = "high";
+      next =
+        (
+          current + 1
+        ) %
+        mediaPaths.length;
+
+
+      transitioning =
+        false;
+
+
+      ctx.imageSmoothingEnabled =
+        true;
+
+      ctx.imageSmoothingQuality =
+        "high";
+
 
       ctx.drawImage(
         accumulatedCanvas,
@@ -782,132 +1170,89 @@ function animateTransition(callback) {
         0
       );
 
+
+      /*
+        Nächstes Medium vorsorglich laden.
+        Es wird NICHT darauf gewartet.
+      */
+      loadMediaAt(next);
+
+
       if (callback) {
         callback();
       }
     }
   }
 
-  requestAnimationFrame(step);
+
+  requestAnimationFrame(
+    step
+  );
 }
 
 
+/*
+  AKTUELLES MEDIUM ABSPIELEN
+*/
 function playCurrent() {
 
-  if (!media.length) {
+  const item =
+    media[current];
+
+
+  if (!item) {
+
     console.error(
-      "Keine Medien zum Abspielen vorhanden."
+      "Aktuelles Medium ist nicht geladen:",
+      current
     );
 
     return;
   }
 
-  const item = media[current];
-
 
   /*
     VIDEO
   */
-  if (item.type === "video") {
+  if (
+    item.type === "video"
+  ) {
 
-    const video = item.element;
+    const video =
+      item.element;
 
-    video.currentTime = 0;
 
-    const playPromise = video.play();
+    video.currentTime =
+      0;
 
-    if (playPromise !== undefined) {
-      playPromise.catch(error => {
-        console.warn(
-          "Video konnte nicht automatisch gestartet werden:",
-          item.src,
-          error
-        );
-      });
+
+    const playPromise =
+      video.play();
+
+
+    if (
+      playPromise !==
+      undefined
+    ) {
+
+      playPromise.catch(
+        error => {
+
+          console.warn(
+            "Video konnte nicht automatisch gestartet werden:",
+            item.src,
+            error
+          );
+        }
+      );
     }
 
-    let transitionStarted = false;
+
+    let transitionStarted =
+      false;
+
 
     function drawVideoFrame() {
-
-      if (
-        !transitioning &&
-        media[current] === item
-      ) {
-
-        accumulatedCanvas = prepareMediaFrame(
-          item,
-          accumulatedCanvas
-        );
-
-        ctx.imageSmoothingEnabled = true;
-        ctx.imageSmoothingQuality = "high";
-
-        ctx.drawImage(
-          accumulatedCanvas,
-          0,
-          0
-        );
-
-        const timeLeft =
-          video.duration -
-          video.currentTime;
-
-        if (
-          !transitionStarted &&
-          Number.isFinite(timeLeft) &&
-          timeLeft <=
-            TRANSITION_DURATION / 1000
-        ) {
-          transitionStarted = true;
-
-          animateTransition(
-            playCurrent
-          );
-
-          return;
-        }
-
-        requestAnimationFrame(
-          drawVideoFrame
-        );
-      }
-    }
-
-    drawVideoFrame();
-
-    video.onended = () => {
-
-      if (
-        !transitionStarted &&
-        !transitioning
-      ) {
-        transitionStarted = true;
-
-        animateTransition(
-          playCurrent
-        );
-      }
-    };
-
-
-  /*
-    GIF
-  */
-  } else if (item.type === "gif") {
-
-    const img = item.element;
-
-    /*
-      GIF neu starten
-    */
-    img.src = "";
-    img.src = item.src;
-
-    const startTime =
-      performance.now();
-
-    function drawGifFrame(now) {
 
       if (
         !transitioning &&
@@ -920,8 +1265,13 @@ function playCurrent() {
             accumulatedCanvas
           );
 
-        ctx.imageSmoothingEnabled = true;
-        ctx.imageSmoothingQuality = "high";
+
+        ctx.imageSmoothingEnabled =
+          true;
+
+        ctx.imageSmoothingQuality =
+          "high";
+
 
         ctx.drawImage(
           accumulatedCanvas,
@@ -929,10 +1279,26 @@ function playCurrent() {
           0
         );
 
+
+        const timeLeft =
+          video.duration -
+          video.currentTime;
+
+
         if (
-          now - startTime >=
-          GIF_HOLD_TIME
+          !transitionStarted &&
+          Number.isFinite(
+            timeLeft
+          ) &&
+          timeLeft <=
+            TRANSITION_DURATION /
+            1000
         ) {
+
+          transitionStarted =
+            true;
+
+
           animateTransition(
             playCurrent
           );
@@ -940,11 +1306,108 @@ function playCurrent() {
           return;
         }
 
+
+        requestAnimationFrame(
+          drawVideoFrame
+        );
+      }
+    }
+
+
+    drawVideoFrame();
+
+
+    video.onended = () => {
+
+      if (
+        !transitionStarted &&
+        !transitioning
+      ) {
+
+        transitionStarted =
+          true;
+
+
+        animateTransition(
+          playCurrent
+        );
+      }
+    };
+
+
+  /*
+    GIF
+  */
+  } else if (
+    item.type === "gif"
+  ) {
+
+    const img =
+      item.element;
+
+
+    /*
+      GIF neu starten
+    */
+    img.src = "";
+
+    img.src =
+      item.src;
+
+
+    const startTime =
+      performance.now();
+
+
+    function drawGifFrame(
+      now
+    ) {
+
+      if (
+        !transitioning &&
+        media[current] === item
+      ) {
+
+        accumulatedCanvas =
+          prepareMediaFrame(
+            item,
+            accumulatedCanvas
+          );
+
+
+        ctx.imageSmoothingEnabled =
+          true;
+
+        ctx.imageSmoothingQuality =
+          "high";
+
+
+        ctx.drawImage(
+          accumulatedCanvas,
+          0,
+          0
+        );
+
+
+        if (
+          now - startTime >=
+          GIF_HOLD_TIME
+        ) {
+
+          animateTransition(
+            playCurrent
+          );
+
+          return;
+        }
+
+
         requestAnimationFrame(
           drawGifFrame
         );
       }
     }
+
 
     requestAnimationFrame(
       drawGifFrame
@@ -962,8 +1425,13 @@ function playCurrent() {
         accumulatedCanvas
       );
 
-    ctx.imageSmoothingEnabled = true;
-    ctx.imageSmoothingQuality = "high";
+
+    ctx.imageSmoothingEnabled =
+      true;
+
+    ctx.imageSmoothingQuality =
+      "high";
+
 
     ctx.drawImage(
       accumulatedCanvas,
@@ -971,84 +1439,177 @@ function playCurrent() {
       0
     );
 
-    setTimeout(() => {
 
-      if (!transitioning) {
-        animateTransition(
-          playCurrent
-        );
-      }
+    /*
+      Während das aktuelle Bild angezeigt wird,
+      nächstes Medium schon laden.
+    */
+    loadMediaAt(next);
 
-    }, IMAGE_HOLD_TIME);
+
+    setTimeout(
+      () => {
+
+        if (!transitioning) {
+
+          animateTransition(
+            playCurrent
+          );
+        }
+
+      },
+      IMAGE_HOLD_TIME
+    );
   }
 }
 
 
 /*
-  START
+  SLIDESHOW STARTEN
+
+  1. Erstes Medium laden
+  2. Sofort Slideshow starten
+  3. Rest parallel im Hintergrund laden
 */
-loadMedia(mediaPaths)
-  .then(loaded => {
+async function startSlideshow() {
 
-    media = loaded;
+  console.log(
+    "Slideshow wird gestartet …"
+  );
 
-    console.log(
-      `${media.length} von ${mediaPaths.length} Medien geladen.`
+
+  /*
+    Erstes Medium laden
+  */
+  let firstItem =
+    await loadMediaAt(0);
+
+
+  /*
+    Falls das erste Medium kaputt ist,
+    erstes funktionierendes suchen.
+  */
+  if (!firstItem) {
+
+    console.warn(
+      "Erstes Medium konnte nicht geladen werden. Suche nächstes …"
     );
 
-    if (!media.length) {
 
-      console.error(
-        "Es konnte keine einzige Datei geladen werden. Bitte die Pfade überprüfen."
-      );
+    for (
+      let i = 1;
+      i < mediaPaths.length;
+      i++
+    ) {
 
-      ctx.fillStyle = "black";
-      ctx.fillRect(
-        0,
-        0,
-        canvas.width,
-        canvas.height
-      );
+      const item =
+        await loadMediaAt(i);
 
-      ctx.fillStyle = "white";
-      ctx.font = "20px sans-serif";
-      ctx.textAlign = "center";
 
-      ctx.fillText(
-        "Keine Medien konnten geladen werden.",
-        canvas.width / 2,
-        canvas.height / 2
-      );
+      if (item) {
 
-      return;
+        current = i;
+        firstItem = item;
+
+        break;
+      }
     }
 
+  } else {
+
     current = 0;
+  }
 
-    next =
-      media.length > 1
-        ? 1
-        : 0;
 
-    accumulatedCanvas =
-      prepareMediaFrame(
-        media[current]
-      );
+  /*
+    Gar nichts konnte geladen werden
+  */
+  if (!firstItem) {
 
-    ctx.imageSmoothingEnabled = true;
-    ctx.imageSmoothingQuality = "high";
-
-    ctx.drawImage(
-      accumulatedCanvas,
-      0,
-      0
-    );
-
-    playCurrent();
-  })
-  .catch(error => {
     console.error(
-      "Fehler beim Starten der Slideshow:",
-      error
+      "Keine Medien konnten geladen werden."
     );
-  });
+
+
+    ctx.fillStyle =
+      "black";
+
+    ctx.fillRect(
+      0,
+      0,
+      canvas.width,
+      canvas.height
+    );
+
+
+    ctx.fillStyle =
+      "white";
+
+    ctx.font =
+      "20px sans-serif";
+
+    ctx.textAlign =
+      "center";
+
+
+    ctx.fillText(
+      "Keine Medien konnten geladen werden.",
+      canvas.width / 2,
+      canvas.height / 2
+    );
+
+
+    return;
+  }
+
+
+  next =
+    (
+      current + 1
+    ) %
+    mediaPaths.length;
+
+
+  accumulatedCanvas =
+    prepareMediaFrame(
+      firstItem
+    );
+
+
+  ctx.imageSmoothingEnabled =
+    true;
+
+  ctx.imageSmoothingQuality =
+    "high";
+
+
+  ctx.drawImage(
+    accumulatedCanvas,
+    0,
+    0
+  );
+
+
+  console.log(
+    "Erstes Medium geladen – Slideshow startet."
+  );
+
+
+  /*
+    SLIDESHOW SOFORT STARTEN
+  */
+  playCurrent();
+
+
+  /*
+    Rest im Hintergrund laden.
+    Wichtig: KEIN await!
+  */
+  preloadRemainingMedia();
+}
+
+
+/*
+  LOS
+*/
+startSlideshow();
